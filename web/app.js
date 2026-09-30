@@ -28,6 +28,7 @@ const S = {
   botCount: 1,
   respondNope: false,
   noTurnTimer: false,
+  handExpanded: false,
   error: "",
   connection: "",
   settings: JSON.parse(
@@ -89,6 +90,8 @@ function accept(r) {
   const old = S.room;
   if (old?.code === r.code && old.revision > r.revision) return;
   S.room = r;
+  if (old?.code !== r.code || old?.game?.id !== r.game?.id)
+    S.handExpanded = false;
   if (
     S.modal === "bots" &&
     !U.derive(r, [], S.localMode).botCounts.includes(S.botCount)
@@ -239,7 +242,7 @@ function game(r, v) {
   const g = r.game;
   const finished = g.phase === "finished";
   const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · 朋友局</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
-  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong>${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div><div class="hand" role="group" aria-label="可滑动的折叠手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(S.handExpanded ? "收起手牌" : "展开手牌", "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -457,6 +460,12 @@ document.addEventListener("click", async (e) => {
         ? S.selected.filter((x) => x !== id)
         : [...S.selected, id];
       render();
+      return;
+    }
+    if (a === "hand-toggle") {
+      S.handExpanded = !S.handExpanded;
+      render();
+      if ($(".hand")) $(".hand").scrollLeft = 0;
       return;
     }
     if (a === "clear") {

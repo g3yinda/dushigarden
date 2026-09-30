@@ -25,6 +25,7 @@ Page({
     respondNope: false,
     noTurnTimer: false,
     handScroll: 0,
+    handExpanded: false,
     motionItems: [],
     connection: "",
     countdown: 0,
@@ -182,6 +183,10 @@ Page({
       room: r,
       selected,
       handScroll: old?.game?.id === r.game?.id ? this.handScroll || 0 : 0,
+      handExpanded:
+        old?.code === r.code && old?.game?.id === r.game?.id
+          ? this.data.handExpanded
+          : false,
       v,
       ...(this.data.modal === "bots" &&
       !v.botCounts.includes(this.data.botCount)
@@ -369,6 +374,11 @@ Page({
       id = e.currentTarget.dataset.id;
     if (this.data.busy) return;
     try {
+      if (a === "hand-toggle") {
+        this.handScroll = 0;
+        this.setData({ handExpanded: !this.data.handExpanded, handScroll: 0 });
+        return;
+      }
       if (a === "create") {
         this.setData({ modal: "create", noTurnTimer: false });
         return;

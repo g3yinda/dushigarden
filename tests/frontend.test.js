@@ -334,6 +334,48 @@ async function browserHarness(mode) {
       handlers.click({ target: { closest: () => ({ dataset: { action } }) } }),
   };
 }
+test("native 手牌默认收起，切换保留多选，同步保持而新局复位", async () => {
+  const page = nativeHarness();
+  page.accept(structuredClone(room));
+  assert.equal(page.data.handExpanded, false);
+  page.data.selected = ["1", "2"];
+  await page.action({ currentTarget: { dataset: { action: "hand-toggle" } } });
+  assert.equal(page.data.handExpanded, true);
+  assert.deepEqual(page.data.selected, ["1", "2"]);
+  page.accept({ ...structuredClone(room), revision: 11 });
+  assert.equal(page.data.handExpanded, true);
+  await page.action({ currentTarget: { dataset: { action: "hand-toggle" } } });
+  assert.equal(page.data.handExpanded, false);
+  assert.deepEqual(Array.from(page.data.selected), ["1", "2"]);
+  await page.action({ currentTarget: { dataset: { action: "hand-toggle" } } });
+  const next = structuredClone(room);
+  next.game.id = "next-game";
+  page.accept(next);
+  assert.equal(page.data.handExpanded, false);
+});
+test("browser 手牌默认收起，切换保留多选，同步保持而新局复位", async () => {
+  const h = await browserHarness("local");
+  h.context.updatedRoom = { ...structuredClone(room), code: "123456", revision: 1 };
+  vm.runInContext("accept(updatedRoom)", h.context);
+  assert.equal(h.state.handExpanded, false);
+  h.state.selected = ["1", "2"];
+  await h.click("hand-toggle");
+  assert.equal(h.state.handExpanded, true);
+  assert.deepEqual(h.state.selected, ["1", "2"]);
+  assert.match(h.nodes["#app"].innerHTML, /收起手牌/);
+  vm.runInContext("accept({...updatedRoom, revision: 11})", h.context);
+  assert.equal(h.state.handExpanded, true);
+  await h.click("hand-toggle");
+  assert.equal(h.state.handExpanded, false);
+  assert.deepEqual(Array.from(h.state.selected), ["1", "2"]);
+  assert.match(h.nodes["#app"].innerHTML, /展开手牌/);
+  await h.click("hand-toggle");
+  h.context.updatedRoom = structuredClone(h.context.updatedRoom);
+  h.context.updatedRoom.game.id = "next-game";
+  h.context.updatedRoom.revision = 12;
+  vm.runInContext("accept(updatedRoom)", h.context);
+  assert.equal(h.state.handExpanded, false);
+});
 test("browser 创建房间先选不限时再提交，默认计时不变", async () => {
   const h = await browserHarness("local");
   h.state.token = "test";

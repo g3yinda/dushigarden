@@ -882,6 +882,13 @@ h3 {
   font-size: 12px;
   padding: 0 6px;
 }
+.hand-controls {
+  display: flex;
+  align-items: center;
+}
+.hand-controls .hand-toggle {
+  color: #0066cc;
+}
 .hand {
   display: block;
   overflow-x: auto;
@@ -918,6 +925,12 @@ h3 {
   transform: translateY(-13px);
   border-color: #0071e3;
   background: #f4f9ff;
+}
+.hand.expanded .card + .card {
+  margin-left: 6px;
+}
+.hand.expanded .card.selected {
+  margin-right: 0;
 }
 .hand .card .card-art {
   margin-left: 34px;

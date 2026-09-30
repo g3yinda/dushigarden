@@ -750,6 +750,13 @@
   font-size: 22rpx;
   padding: 0 11rpx;
 }
+.hand-controls {
+  display: flex;
+  align-items: center;
+}
+.hand-controls .hand-toggle {
+  color: #0066cc;
+}
 .hand {
   width: calc(100% + 36rpx);
   margin: 0 -18rpx;
@@ -759,26 +766,34 @@
   gap: 0;
   padding: 38rpx 25rpx 20rpx;
   align-items: flex-start;
-  width: max-content;
+  /* WXML supplies the full row width so scroll-view retains offscreen cards. */
 }
 .hand .card {
   position: relative;
-  width: 212rpx;
+  /* Override app.wxss's native button reset only within the hand. */
+  width: 212rpx !important;
   height: 277rpx;
-  padding: 9rpx;
+  padding: 9rpx !important;
+  margin: 0 !important;
   border: 3rpx solid #e6e3dc;
   border-radius: 26rpx;
   box-shadow: 0 5rpx 15rpx #24242d12;
   line-height: 1.5;
 }
 .hand .card + .card {
-  margin-left: -126rpx;
+  margin-left: -126rpx !important;
 }
 .hand .card.selected {
-  margin-right: 126rpx;
+  margin-right: 126rpx !important;
   transform: translateY(-24rpx);
   border-color: #0071e3;
   background: #f4f9ff;
+}
+.hand.expanded .card + .card {
+  margin-left: 12rpx !important;
+}
+.hand.expanded .card.selected {
+  margin-right: 0 !important;
 }
 .hand .card-art {
   margin-left: 65rpx;
