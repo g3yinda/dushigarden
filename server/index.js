@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { RoomService, ServiceError } = require("./rooms");
 const { BotRunner } = require("./bots");
-const { canUseLocalDebug } = require("./debug-access");
+const { canUseLocalDebug, canUsePreviewDebug } = require("./debug-access");
 const cards = require("../shared/cards");
 function send(res, status, data) {
   if (res.writableEnded || res.destroyed) return;
@@ -63,10 +63,13 @@ function createServer({
   exchangeCode = exchangeWechatCode,
   pollMs = 20000,
   lanToken = "",
+  previewToken = "",
 } = {}) {
+  if (!["local", "preview", "wechat"].includes(mode)) throw new Error("不支持的运行模式");
+  if (mode === "preview" && !/^[a-f0-9]{64}$/.test(previewToken)) throw new Error("公网测试模式需要有效访问码");
   if (lanToken && (mode !== "local" || !/^[a-f0-9]{64}$/.test(lanToken)))
     throw new Error("真机调试访问码只能用于本地开发模式");
-  service.allowBots = mode === "local";
+  service.allowBots = mode === "local" || mode === "preview";
   const bots = service.allowBots ? new BotRunner(service) : null;
   const limits = new Map();
   const waiting = new Map();
@@ -95,21 +98,20 @@ function createServer({
       const route = url.pathname;
       const address = req.socket.remoteAddress;
       const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address);
-      const debugAccess = canUseLocalDebug({
-        mode,
-        address,
-        lanToken,
-        token: req.headers["x-boomcat-debug"],
-      });
+      const debugAccess = mode === "preview"
+        ? canUsePreviewDebug({ mode, previewToken, token: req.headers["x-boomcat-debug"] })
+        : canUseLocalDebug({ mode, address, lanToken, token: req.headers["x-boomcat-debug"] });
+      if (mode === "preview" && !route.startsWith("/api/"))
+        return send(res, 403, { error: "FORBIDDEN", message: "公网测试请使用微信真机调试包" });
       if (route.startsWith("/api/")) {
         limit("ip:" + address, 600);
         if (route === "/api/health" && req.method === "GET")
-          return send(res, 200, { ok: true, mode, phoneDebug: !!lanToken });
+          return send(res, 200, { ok: true, mode, phoneDebug: !!lanToken || mode === "preview" });
         if (route === "/api/cards" && req.method === "GET")
           return send(res, 200, cards);
-        if (mode === "local" && !debugAccess)
+        if ((mode === "local" || mode === "preview") && !debugAccess)
           throw new ServiceError(
-            "请使用本机或有效的同 Wi-Fi 真机调试配置",
+            mode === "preview" ? "公网调试访问码无效，请重新编译调试包" : "请使用本机或有效的同 Wi-Fi 真机调试配置",
             "FORBIDDEN",
             403,
           );
@@ -150,7 +152,7 @@ function createServer({
         }
         const botRoom = /^\/api\/rooms\/(\d{6})\/bots$/.exec(route);
         if (botRoom && req.method === "POST") {
-          if (mode !== "local" || !debugAccess)
+          if (!["local", "preview"].includes(mode) || !debugAccess)
             throw new ServiceError(
               "验证 Bot 仅在本地开发调试模式可用",
               "FORBIDDEN",
@@ -273,10 +275,11 @@ function createServer({
   return server;
 }
 function startServer({
-  mode = process.env.NODE_ENV === "production" ? "wechat" : "local",
+  mode = process.env.BOOMCAT_MODE || (process.env.NODE_ENV === "production" ? "wechat" : "local"),
   host = process.env.HOST || "127.0.0.1",
   port = Number(process.env.PORT || 8787),
   lanToken = "",
+  previewToken = process.env.BOOMCAT_PREVIEW_TOKEN || "",
   announce = true,
 } = {}) {
   if (
@@ -288,7 +291,7 @@ function startServer({
     file:
       process.env.DATA_FILE || path.resolve(__dirname, "../.data/state.json"),
   });
-  const server = createServer({ service, mode, lanToken });
+  const server = createServer({ service, mode, lanToken, previewToken });
   server.listen(port, host, () => {
     if (announce) console.log(`朋友局已启动 http://${host}:${port} (${mode})`);
   });

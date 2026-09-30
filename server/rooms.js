@@ -303,7 +303,7 @@ class RoomService extends EventEmitter {
       return this.view(id, code);
     }
     if (r.status !== "waiting") fail("这个房间已经开始");
-    if (r.players.length >= 5) fail("房间已满");
+    if (r.players.length >= 6) fail("房间已满");
     r.players.push(this.seat(id));
     r.players.forEach((p) => (p.ready = !!p.isBot));
     this.changed(r);
@@ -346,16 +346,16 @@ class RoomService extends EventEmitter {
       n.commands = {};
     } else if (a.type === "addBots") {
       if (!this.allowBots)
-        fail("验证 Bot 仅在本地开发模式可用", "FORBIDDEN", 403);
+        fail("验证 Bot 仅在开发与公网测试模式可用", "FORBIDDEN", 403);
       if (n.hostId !== id || self.isBot || n.status !== "waiting")
         fail("仅房主能在准备阶段添加 Bot", "FORBIDDEN", 403);
       if (
         !Number.isInteger(a.count) ||
         a.count < 1 ||
-        a.count > 4 ||
-        n.players.length + a.count > 5
+        a.count > 5 ||
+        n.players.length + a.count > 6
       )
-        fail("请选择 1–4 只 Bot，总人数不能超过 5 人");
+        fail("请选择 1–5 只 Bot，总人数不能超过 6 人");
       if (typeof a.respondNope !== "boolean") fail("Bot 否定设置不正确");
       n.players.forEach((p) => (p.ready = !!p.isBot));
       for (let i = 0; i < a.count; i++) {

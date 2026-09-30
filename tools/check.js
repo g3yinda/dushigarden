@@ -59,6 +59,7 @@ console.log(
 );
 if (process.argv.includes("--release")) {
   const config = require("../miniprogram/config");
+  assert.notEqual(config.publicPreview, true, "正式发布前移除公网测试配置");
   assert.equal(
     config.phoneDebug === true,
     false,

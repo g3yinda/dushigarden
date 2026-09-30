@@ -25,8 +25,8 @@ function room(n = 5, self = 2) {
     },
   };
 }
-test("2–5 位玩家围同桌，自己在下方且其他座位按实际下家顺序排列", () => {
-  for (const n of [2, 3, 4, 5]) {
+test("2–6 位玩家围同桌，自己在下方且其他座位按实际下家顺序排列", () => {
+  for (const n of [2, 3, 4, 5, 6]) {
     const r = room(n);
     const v = U.derive(r, []);
     assert.equal(v.tablePlayers.length, n);

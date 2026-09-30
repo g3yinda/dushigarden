@@ -150,9 +150,9 @@
         r.status === "waiting" &&
         !g &&
         r.hostId === id &&
-        r.players.length < 5,
+        r.players.length < 6,
       botCounts: Array.from(
-        { length: Math.max(0, Math.min(4, 5 - r.players.length)) },
+        { length: Math.max(0, Math.min(5, 6 - r.players.length)) },
         (_, i) => i + 1,
       ),
       selection: selection(r, ids || []),
@@ -175,6 +175,13 @@
         [30, 10],
         [70, 10],
         [88, 47],
+      ],
+      6: [
+        [12, 62],
+        [12, 22],
+        [50, 10],
+        [88, 22],
+        [88, 62],
       ],
     };
     const tablePlayers = ps.map((_, i) => {

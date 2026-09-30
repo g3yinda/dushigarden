@@ -320,7 +320,7 @@ test("进行中的 Bot 预知阶段从快照恢复后自动关闭并继续抽牌
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
-test("Bot 随快照恢复，重新开局自动准备，2–5 人最终可以结束对局", () => {
+test("Bot 随快照恢复，重新开局自动准备，2–6 人最终可以结束对局", () => {
   assert.equal(typeof bots.BotRunner, "function");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boom-bots-"));
   try {
@@ -345,7 +345,7 @@ test("Bot 随快照恢复，重新开局自动准备，2–5 人最终可以结�
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  for (const n of [2, 3, 4, 5]) {
+  for (const n of [2, 3, 4, 5, 6]) {
     let now = 1000;
     let seed = n;
     const rng = () =>

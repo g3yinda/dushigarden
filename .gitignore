@@ -7,3 +7,4 @@ project.private.config.json
 miniprogram/config.js
 output/
 .DS_Store
+deploy/*.env

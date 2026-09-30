@@ -144,13 +144,13 @@ for (const [client, controller] of [
     const r = structuredClone(room);
     r.status = "waiting";
     r.game = null;
-    assert.deepEqual(controller.derive(r, [], true).botCounts, [1, 2, 3]);
+    assert.deepEqual(controller.derive(r, [], true).botCounts, [1, 2, 3, 4]);
     assert.equal(controller.derive(r, [], true).canAddBots, true);
     assert.equal(controller.derive(r, [], false).canAddBots, false);
     r.me = "b";
     assert.equal(controller.derive(r, [], true).canAddBots, false);
     r.me = "a";
-    r.players.push({ id: "c" }, { id: "d" }, { id: "e" });
+    r.players.push({ id: "c" }, { id: "d" }, { id: "e" }, { id: "f" });
     assert.equal(controller.derive(r, [], true).canAddBots, false);
     r.players.pop();
     r.status = "playing";

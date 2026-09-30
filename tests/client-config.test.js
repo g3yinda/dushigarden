@@ -52,3 +52,19 @@ test("发布检查可识别整个包含真机调试配置，即便Node环境不�
   );
   assert.equal(context.module.exports.phoneDebug, true);
 });
+test('公网测试包在模拟器/iOS/Android 使用相同HTTPS后端和访问码，不能被发布检查误认正式包',()=>{
+  for (const platform of ['devtools','ios','android']) {
+    const context={module:{exports:{}},wx:{getDeviceInfo:()=>({platform})}};
+    vm.runInNewContext(clientConfigSource({apiBase:'https://preview.example.com',debugToken:token,publicPreview:true}),context);
+    const config=context.module.exports;
+    assert.equal(config.apiBase,'https://preview.example.com'); assert.equal(config.debugToken,token);
+    assert.equal(config.phoneDebug,true); assert.equal(config.publicPreview,true);
+    assert.equal(config.localMode,true);
+  }
+});
+test('公网配置拒绝HTTP、含凭据的地址、无效访问码及生产身份混用',()=>{
+  for (const apiBase of ['http://preview.example.com','https://user:password@preview.example.com','https://preview.example.com/path?token=test'])
+    assert.throws(()=>clientConfigSource({apiBase,debugToken:token,publicPreview:true}),/HTTPS|地址/);
+  assert.throws(()=>clientConfigSource({apiBase:'https://preview.example.com',debugToken:'short',publicPreview:true}),/访问码/);
+  assert.throws(()=>clientConfigSource({apiBase:'https://preview.example.com',debugToken:token,publicPreview:true,localMode:false}),/测试身份/);
+});

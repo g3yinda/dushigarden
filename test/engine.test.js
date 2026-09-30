@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const E = require("../server/engine");
-const players = Array.from({ length: 5 }, (_, i) => ({
+const players = Array.from({ length: 6 }, (_, i) => ({
   id: "p" + i,
   name: "猫" + i,
   avatar: i,
@@ -46,10 +46,10 @@ test("公开出牌事件保留合并快照中的组合与否定顺序，不暴�
   assert.equal(publicEvents.length, 2);
   assert(!JSON.stringify(publicEvents).includes("c4"));
 });
-for (const n of [2, 3, 4, 5])
+for (const n of [2, 3, 4, 5, 6])
   test(`${n} 人开局和守恒`, () => {
     const g = game(n);
-    assert.equal(g.deck.length, { 2: 35, 3: 29, 4: 23, 5: 16 }[n]);
+    assert.equal(g.deck.length, { 2: 35, 3: 29, 4: 23, 5: 16, 6: 9 }[n]);
     for (const p of g.players) {
       assert.equal(p.hand.length, 8);
       assert(p.hand.some((c) => c.type === "defuse"));

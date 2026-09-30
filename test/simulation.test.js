@@ -8,7 +8,7 @@ function seeded(seed) {
     return seed / 4294967296;
   };
 }
-for (const n of [2, 3, 4, 5])
+for (const n of [2, 3, 4, 5, 6])
   test(`${n} 人 × 25 局完整随机对局：守恒、私密投影、最终胜者`, () => {
     for (let seed = 1; seed <= 25; seed++) {
       const rng = seeded(seed);

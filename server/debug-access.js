@@ -30,6 +30,11 @@ function canUseLocalDebug({ mode, address, token, lanToken }) {
     supplied.length === expected.length && timingSafeEqual(supplied, expected)
   );
 }
+function canUsePreviewDebug({ mode, token, previewToken }) {
+  if (mode !== "preview" || !/^[a-f0-9]{64}$/.test(previewToken || "") || typeof token !== "string") return false;
+  const supplied = Buffer.from(token), expected = Buffer.from(previewToken);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
 function findLanAddresses(interfaces = networkInterfaces()) {
   return [
     ...new Set(
@@ -48,4 +53,4 @@ function findLanAddresses(interfaces = networkInterfaces()) {
     ),
   ];
 }
-module.exports = { isPrivateIPv4, canUseLocalDebug, findLanAddresses };
+module.exports = { isPrivateIPv4, canUseLocalDebug, canUsePreviewDebug, findLanAddresses };

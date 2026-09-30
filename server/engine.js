@@ -109,10 +109,10 @@ function createGame(
   if (![15, 10, 5].includes(nopeSeconds)) fail("否定时长请选择15、10或5秒");
   if (
     players.length < 2 ||
-    players.length > 5 ||
+    players.length > 6 ||
     new Set(players.map((p) => p.id)).size !== players.length
   )
-    fail("需要 2–5 名不同玩家");
+    fail("需要 2–6 名不同玩家");
   let serial = 0;
   const make = (type) => ({ id: id + ":" + serial++, type });
   const n = players.length;
@@ -134,7 +134,7 @@ function createGame(
   const g = {
     id,
     version: 1,
-    rulesVersion: "ek-original-2025-online-v1",
+    rulesVersion: n === 6 ? "ek-original-2025-friends-6p-v1" : "ek-original-2025-online-v1",
     options: { noTurnTimer: noTurnTimer === true, nopeSeconds },
     players: ps,
     deck,

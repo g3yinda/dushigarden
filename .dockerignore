@@ -1,0 +1,14 @@
+.git
+.data
+.env
+.env.*
+**/*.env
+**/*.pem
+miniprogram
+output
+assets
+node_modules
+test
+tests
+docs
+.agents
