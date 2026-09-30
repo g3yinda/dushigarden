@@ -7,8 +7,8 @@ const players = Array.from({ length: 5 }, (_, i) => ({
   avatar: i,
 }));
 const opts = { now: 1000, rng: () => 0.4, id: "g" };
-function game(n = 3) {
-  return E.createGame(players.slice(0, n), opts);
+function game(n = 3, options = {}) {
+  return E.createGame(players.slice(0, n), { ...opts, ...options });
 }
 function arrange(g, hands, deck = ["skip", "bomb", "bomb"]) {
   let id = 0;
@@ -27,6 +27,25 @@ function act(g, p, type, extra = {}) {
 function settle(g) {
   return E.tick(g, { ...opts, now: g.deadline });
 }
+test("公开出牌事件保留合并快照中的组合与否定顺序，不暴露剩余手牌", () => {
+  let g = arrange(game(), [["cat1", "cat1", "defuse"], ["nope", "future"], []]);
+  const before = { me: "p0", players: g.players, game: E.project(g, "p0") };
+  g = act(g, "p0", "play", { cards: ["c0", "c1"], target: "p1" });
+  g = act(g, "p1", "nope", { cardId: "c3" });
+  const after = { me: "p0", players: g.players, game: E.project(g, "p0") };
+  const effects = require("../web/controller").motions(before, after);
+  assert.deepEqual(
+    effects.map((e) => e.kind),
+    ["play", "nope"],
+  );
+  assert.equal(effects[0].count, 2);
+  assert.equal(effects[0].card.type, "cat1");
+  assert.match(effects[0].title, /猫0/);
+  assert.match(effects[1].title, /猫1/);
+  const publicEvents = after.game.logs.filter((l) => l.cardEvent);
+  assert.equal(publicEvents.length, 2);
+  assert(!JSON.stringify(publicEvents).includes("c4"));
+});
 for (const n of [2, 3, 4, 5])
   test(`${n} 人开局和守恒`, () => {
     const g = game(n);
@@ -169,4 +188,58 @@ test("超时自动抽牌、拆弹和插回且只执行一次", () => {
   const v = g.version;
   g = E.tick(g, { ...opts, now: 0 });
   assert.equal(g.version, v);
+});
+for (const noTurnTimer of [false, true])
+  test(`不限时 ${noTurnTimer} 保留否定窗口并设置所有选择阶段`, () => {
+    const deadline = (g, name, now = 1000) => {
+      assert.equal(g.phase, name);
+      assert.equal(
+        g.deadline,
+        noTurnTimer && name !== "nope" ? null : now + E.RULES[name],
+      );
+    };
+    let g = arrange(game(3, { noTurnTimer }), [
+      ["future", "nope"],
+      ["nope"],
+      [],
+    ]);
+    deadline(g, "action");
+    g = act(g, "p0", "play", { cards: ["c0"] });
+    deadline(g, "nope");
+    g = E.command(g, "p1", { type: "nope", cardId: "c2" }, { now: 2000 });
+    deadline(g, "nope", 2000);
+    g = E.command(g, "p0", { type: "nope", cardId: "c1" }, { now: 3000 });
+    deadline(g, "nope", 3000);
+    g = settle(g);
+    deadline(g, "future", 8000);
+    g = act(g, "p0", "closeFuture");
+    deadline(g, "action");
+    g = arrange(game(3, { noTurnTimer }), [["favor"], ["skip"], []]);
+    g = settle(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
+    deadline(g, "favor", 6000);
+    g = act(g, "p1", "give", { cardId: "c1" });
+    deadline(g, "action");
+    g = arrange(
+      game(3, { noTurnTimer }),
+      [["defuse"], [], []],
+      ["bomb", "skip", "bomb"],
+    );
+    g = act(g, "p0", "draw");
+    deadline(g, "defuse");
+    g = act(g, "p0", "defuse");
+    deadline(g, "insert");
+    g = act(g, "p0", "insert", { position: 2 });
+    deadline(g, "action");
+  });
+test("null deadline 永不自动推进且玩家仍可在任意时间操作", () => {
+  let g = arrange(game(3, { noTurnTimer: true }), [["future"], [], []]);
+  assert.equal(E.tick(g, { now: 1000000 }), g);
+  g = E.command(g, "p0", { type: "play", cards: ["c0"] }, { now: 1000000 });
+  assert.equal(g.deadline, 1005000);
+  g = E.tick(g, { now: 1005000 });
+  assert.equal(g.deadline, null);
+  assert.equal(E.tick(g, { now: 2000000 }), g);
+  g = E.command(g, "p0", { type: "closeFuture" }, { now: 2000000 });
+  assert.equal(g.deadline, null);
+  assert.equal(g.budget, E.RULES.action);
 });

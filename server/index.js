@@ -123,9 +123,9 @@ function createServer({
           return send(res, 200, service.current(p.id));
         }
         if (route === "/api/rooms" && req.method === "POST") {
-          await body(req);
+          const b = await body(req);
           limit("create:" + p.id, 10);
-          return send(res, 200, service.create(p.id));
+          return send(res, 200, service.create(p.id, b));
         }
         if (route === "/api/rooms/join" && req.method === "POST") {
           limit("join:" + p.id, 20);

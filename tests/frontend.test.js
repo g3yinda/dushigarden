@@ -165,7 +165,10 @@ for (const [client, controller] of [
       const humanRoom = structuredClone(r);
       delete humanRoom.players[1].isBot;
       const human = controller.derive(humanRoom, cards);
-      assert.deepEqual(bot.targets.map((p) => p.id), human.targets.map((p) => p.id));
+      assert.deepEqual(
+        bot.targets.map((p) => p.id),
+        human.targets.map((p) => p.id),
+      );
       assert.deepEqual(bot.selection, human.selection);
       r.game.players[1].count = 0;
       assert.equal(controller.derive(r, cards).targets.length, 0);
@@ -184,46 +187,186 @@ function waitingRoom() {
   r.serverNow = Date.now();
   return r;
 }
-function nativeHarness() {
+function nativeHarness(schedule = () => 1) {
   let page;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "../miniprogram/pages/home/home.js"), "utf8"), {
-    require: (name) => name.includes("controller") ? ui : { localMode: true },
-    Page: (definition) => { page = definition; },
-    setTimeout: () => 1, clearTimeout() {},
-  });
+  vm.runInNewContext(
+    fs.readFileSync(
+      path.join(__dirname, "../miniprogram/pages/home/home.js"),
+      "utf8",
+    ),
+    {
+      require: (name) =>
+        name.includes("controller")
+          ? {
+              ...ui,
+              createMotionPlayer: (options) =>
+                ui.createMotionPlayer({ ...options, schedule }),
+            }
+          : { localMode: true },
+      Page: (definition) => {
+        page = definition;
+      },
+      setTimeout: schedule,
+      clearTimeout() {},
+    },
+  );
   page.setData = (update) => Object.assign(page.data, update);
   page.accept(waitingRoom());
   page.notices = [];
   page.notice = (message) => page.notices.push(message);
   return page;
 }
+test("native 创建房间先选择不限时模式，最终提交房间选项", async () => {
+  const page = nativeHarness();
+  page.data.room = null;
+  const calls = [];
+  page.session = async () => {};
+  page.request = async (url, body) => {
+    calls.push({ url, body });
+    return waitingRoom();
+  };
+  page.poll = () => {};
+  await page.action({ currentTarget: { dataset: { action: "create" } } });
+  assert.equal(page.data.modal, "create");
+  assert.equal(calls.length, 0);
+  page.roomSetting({ detail: { value: true } });
+  await page.action({
+    currentTarget: { dataset: { action: "create-submit" } },
+  });
+  assert.equal(calls[0].url, "/rooms");
+  assert.equal(calls[0].body.noTurnTimer, true);
+});
+test("native 无动效的新状态同步不会提前清除正在展示的牌", () => {
+  const page = nativeHarness();
+  page.data.room = structuredClone(room);
+  const r = structuredClone(room);
+  r.game.hand.push({ id: "new", type: "skip" });
+  page.accept(r);
+  assert.equal(page.data.motion.card.type, "skip");
+  page.accept({ ...r, revision: 12 });
+  assert.equal(page.data.motion.card.type, "skip");
+});
+test("native 连续同类出牌更换动画节点，普通同步不更换节点", () => {
+  const timers = [];
+  const page = nativeHarness((fn, ms) => {
+    timers.push({ fn, ms });
+    return timers.length;
+  });
+  page.data.room = structuredClone(room);
+  const r = structuredClone(room);
+  r.game.logs = [1, 2].map((id) => ({
+    id,
+    text: "甲出牌",
+    cardEvent: {
+      kind: "play",
+      actor: "a",
+      cards: [{ id: "played" + id, type: "shuffle" }],
+    },
+  }));
+  page.accept(r);
+  const first = page.data.motionItems[0];
+  assert.equal(first.kind, "play");
+  page.accept({ ...r, revision: 12 });
+  assert.equal(page.data.motionItems[0].renderId, first.renderId);
+  assert.equal(timers[0].ms, 3000);
+  timers[0].fn();
+  const second = page.data.motionItems[0];
+  assert.equal(second.kind, "play");
+  assert.notEqual(second.renderId, first.renderId);
+  assert.equal(second.card.id, "played2");
+  timers[1].fn();
+  assert.equal(page.data.motionItems.length, 0);
+});
+test("native 房间失效回大厅时清除旧局动画队列", async () => {
+  const page = nativeHarness();
+  page.visible = true;
+  page.data.room = structuredClone(room);
+  const r = structuredClone(room);
+  r.game.hand.push({ id: "new", type: "skip" });
+  page.accept(r);
+  assert(page.data.motion);
+  page.request = async () => {
+    throw Object.assign(Error("房间不存在"), { status: 404 });
+  };
+  await page.poll();
+  assert.equal(page.data.room, null);
+  assert.equal(page.data.motion, null);
+  assert.equal(page.data.motionItems.length, 0);
+});
 async function browserHarness(mode) {
-  const handlers = {}, nodes = { "#app": { innerHTML: "" }, "#toast": { style: {} } };
+  const handlers = {},
+    nodes = { "#app": { innerHTML: "" }, "#toast": { style: {} } };
   const requests = [];
   const context = vm.createContext({
     BoomUI: require("../web/controller"),
-    sessionStorage: { getItem: () => null }, localStorage: { getItem: () => null },
+    sessionStorage: { getItem: () => null },
+    localStorage: { getItem: () => null },
     document: {
       body: { classList: { toggle() {} } },
       querySelector: (selector) => nodes[selector] || null,
-      addEventListener: (event, handler) => { handlers[event] = handler; },
+      addEventListener: (event, handler) => {
+        handlers[event] = handler;
+      },
     },
     fetch: async (url, options) => {
       requests.push({ url, options });
       return { ok: true, json: async () => ({ ok: true, mode }) };
     },
-    location: { search: "", origin: "http://localhost" }, URLSearchParams,
-    setInterval() {}, setTimeout: () => 1, clearTimeout() {},
+    location: { search: "", origin: "http://localhost" },
+    URLSearchParams,
+    setInterval() {},
+    setTimeout: () => 1,
+    clearTimeout() {},
     crypto: require("node:crypto"),
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, "../web/app.js"), "utf8"), context);
+  vm.runInContext(
+    fs.readFileSync(path.join(__dirname, "../web/app.js"), "utf8"),
+    context,
+  );
   await new Promise((resolve) => setImmediate(resolve));
   return {
-    context, requests, nodes,
+    context,
+    requests,
+    nodes,
     state: vm.runInContext("S", context),
-    click: (action) => handlers.click({ target: { closest: () => ({ dataset: { action } }) } }),
+    click: (action) =>
+      handlers.click({ target: { closest: () => ({ dataset: { action } }) } }),
   };
 }
+test("browser 创建房间先选不限时再提交，默认计时不变", async () => {
+  const h = await browserHarness("local");
+  h.state.token = "test";
+  await h.click("create");
+  assert.equal(h.state.modal, "create");
+  assert.equal(h.state.noTurnTimer, false);
+  assert(!h.requests.some((r) => r.url === "/api/rooms"));
+  h.state.noTurnTimer = true;
+  h.context.fetch = async (url, options) => {
+    h.requests.push({ url, options });
+    return { ok: true, json: async () => waitingRoom() };
+  };
+  vm.runInContext("poll = () => {}", h.context);
+  await h.click("create-submit");
+  const call = h.requests.find((r) => r.url === "/api/rooms");
+  assert.equal(JSON.parse(call.options.body).noTurnTimer, true);
+});
+test("browser 房间失效回大厅时清除旧局动画队列", async () => {
+  const h = await browserHarness("local");
+  h.state.room = structuredClone(room);
+  const r = structuredClone(room);
+  r.game.hand.push({ id: "new", type: "skip" });
+  h.context.updatedRoom = r;
+  vm.runInContext("accept(updatedRoom)", h.context);
+  assert(h.state.motion);
+  h.context.fetch = async () => ({
+    ok: false,
+    status: 404,
+    json: async () => ({ message: "房间不存在" }),
+  });
+  await vm.runInContext("poll()", h.context);
+  assert.equal(h.state.room, null);
+  assert.equal(h.state.motion, null);
+});
 test("native Bot form defaults off and submits one revision-guarded request under busy lock", async () => {
   const page = nativeHarness();
   await page.action({ currentTarget: { dataset: { action: "bots" } } });
@@ -236,7 +379,9 @@ test("native Bot form defaults off and submits one revision-guarded request unde
   let complete;
   page.request = (url, body) => {
     calls.push({ url, body });
-    return new Promise((resolve) => { complete = resolve; });
+    return new Promise((resolve) => {
+      complete = resolve;
+    });
   };
   const action = { currentTarget: { dataset: { action: "bots-submit" } } };
   const first = page.action(action);
@@ -256,9 +401,13 @@ test("native Bot form defaults off and submits one revision-guarded request unde
 test("native Bot conflict refreshes room and explains stale capacity", async () => {
   const page = nativeHarness();
   await page.action({ currentTarget: { dataset: { action: "bots" } } });
-  page.request = async () => { throw Object.assign(Error("changed"), { status: 409 }); };
+  page.request = async () => {
+    throw Object.assign(Error("changed"), { status: 409 });
+  };
   let refreshed = false;
-  page.refresh = async () => { refreshed = true; };
+  page.refresh = async () => {
+    refreshed = true;
+  };
   await page.action({ currentTarget: { dataset: { action: "bots-submit" } } });
   assert.equal(refreshed, true);
   assert.match(page.notices.at(-1), /房间.*变化/);
@@ -271,7 +420,10 @@ test("browser only exposes Bot entry when health reports local mode", async () =
     assert.equal(h.state.localMode, mode === "local");
     h.state.room = waitingRoom();
     vm.runInContext("render()", h.context);
-    assert.equal(h.nodes["#app"].innerHTML.includes("添加验证 Bot"), mode === "local");
+    assert.equal(
+      h.nodes["#app"].innerHTML.includes("添加验证 Bot"),
+      mode === "local",
+    );
   }
 });
 test("browser Bot form sends selected policy once and handles conflict", async () => {
@@ -284,7 +436,9 @@ test("browser Bot form sends selected policy once and handles conflict", async (
   let complete;
   h.context.fetch = (url, options) => {
     h.requests.push({ url, options });
-    return new Promise((resolve) => { complete = resolve; });
+    return new Promise((resolve) => {
+      complete = resolve;
+    });
   };
   const first = h.click("bots-submit");
   await h.click("bots-submit");
@@ -301,9 +455,10 @@ test("browser Bot form sends selected policy once and handles conflict", async (
   assert.equal(h.state.busy, false);
   assert.equal(h.state.room.revision, 8);
   await h.click("bots");
-  h.context.fetch = async (url) => url.endsWith("/bots")
-    ? { ok: false, status: 409, json: async () => ({ message: "changed" }) }
-    : { ok: true, json: async () => ({ ...waitingRoom(), revision: 9 }) };
+  h.context.fetch = async (url) =>
+    url.endsWith("/bots")
+      ? { ok: false, status: 409, json: async () => ({ message: "changed" }) }
+      : { ok: true, json: async () => ({ ...waitingRoom(), revision: 9 }) };
   await h.click("bots-submit");
   assert.equal(h.state.room.revision, 9);
   assert.match(h.nodes["#toast"].textContent, /房间.*变化/);
@@ -335,11 +490,17 @@ test("native invalidates old poll before leaving and ignores its membership erro
   let oldEpoch;
   let invalidBeforeLeave = false;
   let abortedBeforeLeave = false;
-  page.pollRequest = { abort: () => { aborted = true; } };
+  page.pollRequest = {
+    abort: () => {
+      aborted = true;
+    },
+  };
   page.request = (url) => {
     if (url.includes("?after=")) {
       oldEpoch = page.epoch;
-      return new Promise((resolve, reject) => { rejectPoll = reject; });
+      return new Promise((resolve, reject) => {
+        rejectPoll = reject;
+      });
     }
     invalidBeforeLeave = page.epoch > oldEpoch;
     abortedBeforeLeave = aborted;
@@ -359,9 +520,14 @@ test("native failed leave resumes polling its existing room", async () => {
   page.visible = true;
   page.epoch = 10;
   let restarts = 0;
-  page.poll = () => { restarts++; };
+  page.poll = () => {
+    restarts++;
+  };
   page.request = async () => {
-    assert(page.epoch > 10, "old poll must be invalid before leave HTTP starts");
+    assert(
+      page.epoch > 10,
+      "old poll must be invalid before leave HTTP starts",
+    );
     throw Error("离房失败");
   };
   await page.command("leave");
@@ -379,7 +545,9 @@ test("browser invalidates old poll before leaving and ignores its membership err
   h.context.fetch = (url) => {
     if (url.includes("?after=")) {
       oldEpoch = h.state.poll;
-      return new Promise((resolve, reject) => { rejectPoll = reject; });
+      return new Promise((resolve, reject) => {
+        rejectPoll = reject;
+      });
     }
     invalidBeforeLeave = h.state.poll > oldEpoch;
     rejectPoll(Object.assign(Error("你不在这个房间中"), { status: 403 }));
@@ -397,10 +565,15 @@ test("browser failed leave resumes polling its existing room", async () => {
   h.state.room = waitingRoom();
   h.state.poll = 10;
   let restarts = 0;
-  h.context.restartPoll = () => { restarts++; };
+  h.context.restartPoll = () => {
+    restarts++;
+  };
   vm.runInContext("poll = restartPoll", h.context);
   h.context.fetch = async () => {
-    assert(h.state.poll > 10, "old poll must be invalid before leave HTTP starts");
+    assert(
+      h.state.poll > 10,
+      "old poll must be invalid before leave HTTP starts",
+    );
     throw Error("离房失败");
   };
   await h.click("leave-submit");

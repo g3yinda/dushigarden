@@ -36,7 +36,10 @@ class RoomService extends EventEmitter {
         rooms: data.rooms,
       });
       let repaired = false;
-      for (const r of Object.values(this.rooms))
+      for (const r of Object.values(this.rooms)) {
+        if (!r.options || (r.game && !r.game.options)) repaired = true;
+        r.options = { noTurnTimer: r.options?.noTurnTimer === true };
+        if (r.game) r.game.options = copy(r.options);
         if (r.game && r.status === "playing") {
           try {
             E.assertInvariant(r.game);
@@ -46,6 +49,7 @@ class RoomService extends EventEmitter {
             repaired = true;
           }
         }
+      }
       if (repaired) this.save();
     }
   }
@@ -159,7 +163,38 @@ class RoomService extends EventEmitter {
     const was = this.online(p);
     this.presence[id] = this.now();
     p.away = false;
-    if (!was) this.changed(r);
+    const canceled = r.offlineTurn?.playerId === id;
+    if (canceled) r.offlineTurn = null;
+    if (!was || canceled) this.changed(r);
+  }
+  updateOfflineTurn(r, now) {
+    const g = r.game;
+    const id = g?.phase === "favor" ? g.pending?.target : g?.current;
+    const responsible = r.players.find((p) => p.id === id);
+    if (
+      r.status !== "playing" ||
+      !r.options?.noTurnTimer ||
+      !g ||
+      g.deadline !== null ||
+      !E.RULES[g.phase] ||
+      !responsible ||
+      responsible.isBot ||
+      this.online(responsible)
+    ) {
+      if (!r.offlineTurn) return false;
+      r.offlineTurn = null;
+      return true;
+    }
+    const context = [g.id, g.version, g.phase, id].join(":");
+    if (r.offlineTurn?.context === context) return false;
+    // A disconnect starts a fresh normal-length grace period for this choice.
+    // This internal timer never replaces the public unlimited deadline.
+    r.offlineTurn = {
+      context,
+      playerId: id,
+      deadline: now + E.RULES[g.phase],
+    };
+    return true;
   }
   changed(r) {
     r.revision++;
@@ -178,6 +213,7 @@ class RoomService extends EventEmitter {
       revision: r.revision,
       hostId: r.hostId,
       status: r.status,
+      options: copy(r.options || { noTurnTimer: false }),
       me: id,
       serverNow: this.now(),
       players: r.players.map((p) => ({
@@ -205,7 +241,12 @@ class RoomService extends EventEmitter {
       lastSeen: this.now(),
     };
   }
-  create(id) {
+  create(id, options = {}) {
+    if (
+      Object.hasOwn(options, "noTurnTimer") &&
+      typeof options.noTurnTimer !== "boolean"
+    )
+      fail("不限时设置必须为布尔值");
     if (this.find(id)) fail("请先离开当前房间；对局中需等待结束");
     let code;
     do {
@@ -216,6 +257,7 @@ class RoomService extends EventEmitter {
       hostId: id,
       revision: 1,
       status: "waiting",
+      options: { noTurnTimer: options.noTurnTimer === true },
       players: [this.seat(id)],
       game: null,
       commands: {},
@@ -314,7 +356,7 @@ class RoomService extends EventEmitter {
           avatar,
           isBot: !!isBot,
         })),
-        { now: this.now() },
+        { now: this.now(), ...n.options },
       );
       n.status = "playing";
     } else if (a.type === "rematch") {
@@ -370,6 +412,7 @@ class RoomService extends EventEmitter {
     const keys = Object.keys(n.commands);
     if (keys.length > 512) delete n.commands[keys[0]];
     this.rooms[code] = n;
+    this.updateOfflineTurn(n, this.now());
     this.changed(n);
     if (!n.players.length) {
       delete this.rooms[code];
@@ -402,13 +445,19 @@ class RoomService extends EventEmitter {
           continue;
         }
         try {
-          const next = E.tick(r.game, { now });
+          const timerChanged = this.updateOfflineTurn(r, now);
+          const timeout = r.offlineTurn && now >= r.offlineTurn.deadline;
+          const state = timeout
+            ? { ...r.game, deadline: r.offlineTurn.deadline }
+            : r.game;
+          const next = E.tick(state, { now });
           if (next !== r.game) {
             E.assertInvariant(next);
             r.game = next;
             if (next.phase === "finished") r.status = "finished";
+            this.updateOfflineTurn(r, now);
             this.changed(r);
-          }
+          } else if (timerChanged) this.changed(r);
         } catch (error) {
           this.abort(r);
           console.error(

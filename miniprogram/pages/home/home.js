@@ -23,6 +23,9 @@ Page({
     botCount: 1,
     botCountIndex: 0,
     respondNope: false,
+    noTurnTimer: false,
+    handScroll: 0,
+    motionItems: [],
     connection: "",
     countdown: 0,
     settings: { reduced: false, sound: false },
@@ -56,7 +59,7 @@ Page({
   },
   onUnload() {
     this.onHide();
-    clearTimeout(this.motionTimer);
+    this.motionPlayer?.clear();
     if (this.audio) this.audio.destroy();
   },
   onShareAppMessage() {
@@ -151,6 +154,18 @@ Page({
   },
   accept(r) {
     if (!r) return;
+    this.motionPlayer ||= U.createMotionPlayer({
+      show: (motion) => {
+        // Key each effect so consecutive plays mount a fresh CSS animation node.
+        this.motionSequence = (this.motionSequence || 0) + 1;
+        this.setData({
+          motion,
+          motionItems: motion
+            ? [{ ...motion, renderId: this.motionSequence }]
+            : [],
+        });
+      },
+    });
     const old = this.data.room;
     if (old?.code === r.code && old.revision > r.revision) return;
     this.offset = r.serverNow - Date.now();
@@ -158,24 +173,26 @@ Page({
       r.game?.hand.some((c) => c.id === id),
     );
     const changed = U.contextChanged(old, r);
-    const effect = U.motion(old, r);
+    const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
     this.setData({
       room: r,
       selected,
+      handScroll: old?.game?.id === r.game?.id ? this.handScroll || 0 : 0,
       v,
-      ...(this.data.modal === "bots" && !v.botCounts.includes(this.data.botCount)
+      ...(this.data.modal === "bots" &&
+      !v.botCounts.includes(this.data.botCount)
         ? { botCount: 1, botCountIndex: 0 }
         : {}),
       connection: "",
-      motion: effect,
       ...(changed
         ? { modal: "", target: "", position: 1, positionIndex: 0 }
         : {}),
     });
-    if (effect) {
-      clearTimeout(this.motionTimer);
-      this.motionTimer = setTimeout(() => this.setData({ motion: null }), 850);
+    if (old?.code !== r.code || old?.game?.id !== r.game?.id)
+      this.motionPlayer.clear();
+    effects.forEach((effect) => this.motionPlayer.push(effect));
+    if (effects.length) {
       if (this.data.settings.sound) {
         this.audio ||= wx.createInnerAudioContext();
         this.audio.src = "/assets/tone.mp3";
@@ -186,13 +203,16 @@ Page({
   },
   tick() {
     let deadline = this.data.room?.game?.deadline;
-    if (deadline)
-      this.setData({
-        countdown: Math.max(
-          0,
-          Math.ceil((deadline - Date.now() - (this.offset || 0)) / 1000),
-        ),
-      });
+    if (!deadline) {
+      this.setData({ countdown: null });
+      return;
+    }
+    this.setData({
+      countdown: Math.max(
+        0,
+        Math.ceil((deadline - Date.now() - (this.offset || 0)) / 1000),
+      ),
+    });
   },
   async refresh() {
     if (this.data.room) {
@@ -219,6 +239,7 @@ Page({
         if (epoch !== this.epoch) return;
         if ([401, 403, 404].includes(e.status)) {
           this.epoch++;
+          this.motionPlayer?.clear();
           if (e.status === 401) {
             this.token = null;
             wx.removeStorageSync("boom.token");
@@ -255,6 +276,7 @@ Page({
         },
       );
       if (type === "leave") {
+        this.motionPlayer?.clear();
         this.setData({
           room: null,
           v: {},
@@ -279,6 +301,12 @@ Page({
   input(e) {
     this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
   },
+  roomSetting(e) {
+    this.setData({ noTurnTimer: e.detail.value });
+  },
+  handScrolled(e) {
+    this.handScroll = e.detail.scrollLeft;
+  },
   chooseBotCount(e) {
     const index = Number(e.detail.value);
     this.setData({
@@ -291,14 +319,20 @@ Page({
   },
   async addBots() {
     const v = U.derive(this.data.room, [], this.data.localMode);
-    if (this.data.busy || !v.canAddBots || !v.botCounts.includes(this.data.botCount)) return;
+    if (
+      this.data.busy ||
+      !v.canAddBots ||
+      !v.botCounts.includes(this.data.botCount)
+    )
+      return;
     this.setData({ busy: true });
     try {
       const r = await this.request("/rooms/" + this.data.room.code + "/bots", {
         count: this.data.botCount,
         respondNope: this.data.respondNope,
         revision: this.data.room.revision,
-        commandId: Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
+        commandId:
+          Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
       });
       this.setData({ modal: "" });
       this.accept(r);
@@ -332,9 +366,19 @@ Page({
       id = e.currentTarget.dataset.id;
     if (this.data.busy) return;
     try {
+      if (a === "create") {
+        this.setData({ modal: "create", noTurnTimer: false });
+        return;
+      }
       if (a === "bots") {
-        if (!U.derive(this.data.room, [], this.data.localMode).canAddBots) return;
-        this.setData({ modal: "bots", botCount: 1, botCountIndex: 0, respondNope: false });
+        if (!U.derive(this.data.room, [], this.data.localMode).canAddBots)
+          return;
+        this.setData({
+          modal: "bots",
+          botCount: 1,
+          botCountIndex: 0,
+          respondNope: false,
+        });
         return;
       }
       if (a === "bots-submit") return await this.addBots();
@@ -356,12 +400,14 @@ Page({
         });
         return;
       }
-      if (a === "create" || a === "join-submit") {
+      if (a === "create-submit" || a === "join-submit") {
         this.setData({ busy: true });
         await this.session();
         const r = await this.request(
-          a === "create" ? "/rooms" : "/rooms/join",
-          a === "create" ? {} : { code: this.data.code },
+          a === "create-submit" ? "/rooms" : "/rooms/join",
+          a === "create-submit"
+            ? { noTurnTimer: this.data.noTurnTimer }
+            : { code: this.data.code },
         );
         this.setData({ modal: "" });
         this.accept(r);
@@ -385,11 +431,17 @@ Page({
         let selected = this.data.selected.includes(id)
           ? this.data.selected.filter((x) => x !== id)
           : [...this.data.selected, id];
-        this.setData({ selected, v: U.derive(this.data.room, selected, this.data.localMode) });
+        this.setData({
+          selected,
+          v: U.derive(this.data.room, selected, this.data.localMode),
+        });
         return;
       }
       if (a === "clear") {
-        this.setData({ selected: [], v: U.derive(this.data.room, [], this.data.localMode) });
+        this.setData({
+          selected: [],
+          v: U.derive(this.data.room, [], this.data.localMode),
+        });
         return;
       }
       if (a === "prepare") {

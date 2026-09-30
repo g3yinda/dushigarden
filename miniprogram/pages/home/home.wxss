@@ -569,3 +569,466 @@
 .reduced .future .card {
   animation: none !important;
 }
+
+/* Shared tabletop and overlapping, scrollable hand. */
+.game-shell {
+  padding: 28rpx 28rpx calc(24rpx + env(safe-area-inset-bottom));
+}
+.game-shell > .top {
+  margin-bottom: 16rpx;
+}
+.game-shell > .top .heading {
+  font-size: 38rpx;
+}
+.game-shell > .top .muted {
+  font-size: 22rpx;
+}
+.game-room {
+  background: #faf8f4;
+  border-radius: 50rpx;
+  padding-bottom: 28rpx;
+}
+.board-stage {
+  position: relative;
+  height: 610rpx;
+}
+.table-felt {
+  position: absolute;
+  top: 56rpx;
+  bottom: 65rpx;
+  left: 40rpx;
+  right: 40rpx;
+  border: 17rpx solid #eadfcf;
+  border-radius: 48%;
+  background: #f2ece2;
+  box-shadow: inset 0 0 0 2rpx #dfd2bf;
+}
+.table-brand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 48rpx;
+  text-align: center;
+  color: #8c806e;
+  font-size: 17rpx;
+  letter-spacing: 3rpx;
+}
+.table-seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 145rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7rpx;
+  text-align: center;
+  z-index: 2;
+}
+.table-seat .avatar {
+  width: 90rpx;
+  height: 90rpx;
+  border: 5rpx solid #fff;
+  box-sizing: border-box;
+}
+.seat-info {
+  max-width: 100%;
+  border-radius: 22rpx;
+  background: #faf8f4ed;
+  padding: 5rpx 9rpx;
+  font-size: 19rpx;
+  color: #6d726f;
+}
+.seat-info .strong {
+  font-size: 22rpx;
+  color: #31332e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seat-info > view + view {
+  margin-top: 4rpx;
+}
+.self-seat {
+  width: 300rpx;
+  flex-direction: row;
+  justify-content: center;
+  gap: 13rpx;
+}
+.self-seat .seat-info {
+  text-align: left;
+}
+.table-seat.active .avatar {
+  outline: 4rpx solid #0071e3;
+  outline-offset: 4rpx;
+}
+.turn-dot {
+  position: absolute;
+  top: 0;
+  right: 28rpx;
+  height: 16rpx;
+  width: 16rpx;
+  border-radius: 50%;
+  background: #0071e3;
+  border: 3rpx solid #fff;
+}
+.self-seat .turn-dot {
+  right: 78rpx;
+}
+.board-center {
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  width: 305rpx;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+.board-center .turn-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5rpx;
+  padding: 11rpx 7rpx;
+  background: transparent;
+  font-size: 20rpx;
+}
+.board-center .turn-label .strong {
+  font-size: 24rpx;
+}
+.board-center .turn-label > view + view {
+  color: #75776e;
+  font-size: 19rpx;
+}
+.board-center .piles {
+  gap: 32rpx;
+  margin: 22rpx 0 0;
+}
+.board-center .pile {
+  width: 126rpx;
+  font-size: 19rpx;
+  color: #7c7164;
+}
+.board-center .card-back,
+.board-center .empty-pile {
+  width: 126rpx;
+  height: 166rpx;
+  font-size: 52rpx;
+  margin-bottom: 11rpx;
+  border-radius: 22rpx;
+}
+.board-center .empty-pile {
+  font-size: 22rpx;
+}
+.board-center .pile > .card {
+  width: 126rpx;
+  height: 166rpx;
+  padding: 5rpx;
+  border-radius: 22rpx;
+  margin-bottom: 11rpx;
+}
+.board-center .card-art {
+  height: 82rpx;
+}
+.board-center .card-name {
+  font-size: 19rpx;
+  margin: 5rpx 0 0;
+}
+.board-center .card-short {
+  display: none;
+}
+.hand-area {
+  padding: 0 18rpx;
+}
+.hand-caption {
+  margin: 0 4rpx;
+  font-size: 24rpx;
+  height: 74rpx;
+}
+.hand-caption .strong {
+  color: #31332e;
+}
+.hand-caption button {
+  min-height: 74rpx;
+  font-size: 22rpx;
+  padding: 0 11rpx;
+}
+.hand {
+  width: calc(100% + 36rpx);
+  margin: 0 -18rpx;
+}
+.hand-row {
+  display: flex;
+  gap: 0;
+  padding: 38rpx 25rpx 20rpx;
+  align-items: flex-start;
+  width: max-content;
+}
+.hand .card {
+  position: relative;
+  width: 212rpx;
+  height: 277rpx;
+  padding: 9rpx;
+  border: 3rpx solid #e6e3dc;
+  border-radius: 26rpx;
+  box-shadow: 0 5rpx 15rpx #24242d12;
+  line-height: 1.5;
+}
+.hand .card + .card {
+  margin-left: -126rpx;
+}
+.hand .card.selected {
+  margin-right: 126rpx;
+  transform: translateY(-24rpx);
+  border-color: #0071e3;
+  background: #f4f9ff;
+}
+.hand .card-art {
+  margin-left: 65rpx;
+  width: calc(100% - 65rpx);
+  height: 102rpx;
+}
+.hand .card-name,
+.hand .card-short {
+  margin-left: 65rpx;
+  width: calc(100% - 65rpx);
+}
+.hand .card-name {
+  font-size: 21rpx;
+  margin-top: 15rpx;
+}
+.hand .card-short {
+  font-size: 17rpx;
+  margin-top: 9rpx;
+  line-height: 1.4;
+}
+.card-spine {
+  position: absolute;
+  top: 17rpx;
+  bottom: 17rpx;
+  left: 9rpx;
+  width: 52rpx;
+  border-radius: 13rpx;
+  background: #f3f4f7;
+  padding: 15rpx 7rpx;
+  font-size: 25rpx;
+  font-weight: 600;
+  line-height: 1.5;
+  color: #3f4851;
+  word-break: break-all;
+  white-space: normal;
+  text-align: center;
+  box-sizing: border-box;
+}
+.selected .card-spine {
+  color: #0066cc;
+  background: #e1f0ff;
+}
+.card-check {
+  display: none;
+  position: absolute;
+  top: 4rpx;
+  right: 4rpx;
+  background: #0071e3;
+  color: #fff;
+  border-radius: 50%;
+  height: 35rpx;
+  width: 35rpx;
+  font-size: 22rpx;
+}
+.selected .card-check {
+  display: block;
+}
+.selection-preview {
+  min-height: 112rpx;
+  margin: 0 5rpx;
+  padding: 11rpx 0;
+  font-size: 21rpx;
+  line-height: 1.5;
+  color: #74766e;
+}
+.selection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 23rpx;
+  font-weight: 600;
+  color: #3d433d;
+}
+.selection-title button {
+  min-height: 56rpx;
+  font-size: 22rpx;
+  padding: 0 8rpx;
+}
+.selected-names {
+  font-size: 23rpx;
+  color: #0066cc;
+  margin-bottom: 4rpx;
+}
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15rpx;
+}
+.action-bar > button {
+  flex: 1 1 225rpx;
+  min-height: 86rpx;
+  font-size: 26rpx;
+  padding: 18rpx 10rpx;
+  margin: 0;
+}
+.hand-area .phase {
+  margin: 0 0 15rpx;
+  font-size: 22rpx;
+  padding: 22rpx;
+}
+.hand-area .phase .strong {
+  font-size: 27rpx;
+}
+.hand-area .phase .muted {
+  font-size: 21rpx;
+}
+.room-mode {
+  text-align: center;
+  color: #637080;
+  font-size: 22rpx;
+  margin-top: 22rpx;
+}
+.modal-shade.centered {
+  align-items: center;
+  justify-content: center;
+  padding: 35rpx;
+  box-sizing: border-box;
+}
+.centered .sheet {
+  width: 100%;
+  border-radius: 48rpx;
+  max-height: 85vh;
+  padding: 30rpx;
+}
+.centered .sheet .heading {
+  font-size: 37rpx;
+}
+.centered .sheet .rule {
+  font-size: 24rpx;
+  margin: 22rpx 0;
+  line-height: 1.6;
+}
+.play-preview {
+  display: flex;
+  gap: 15rpx;
+  justify-content: center;
+  margin: 22rpx 0;
+}
+.play-preview .card {
+  width: 156rpx;
+  box-shadow: none;
+  border: 1rpx solid #eee;
+}
+.play-preview .card-art {
+  height: 96rpx;
+}
+.play-preview .card-name {
+  font-size: 22rpx;
+}
+.play-preview .card-short {
+  font-size: 17rpx;
+}
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15rpx;
+}
+.target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 11rpx;
+  width: calc(50% - 8rpx);
+  min-height: 200rpx;
+  padding: 20rpx 10rpx;
+  box-sizing: border-box;
+  font-size: 21rpx;
+  line-height: 1.5;
+}
+.target .avatar {
+  width: 98rpx;
+  height: 98rpx;
+}
+.target .strong {
+  font-size: 24rpx;
+}
+.target.chosen {
+  outline: none;
+  border: 3rpx solid #0071e3;
+  background: #edf6ff;
+}
+.motion-tile {
+  position: relative;
+  width: 440rpx;
+  box-sizing: border-box;
+  padding: 34rpx 40rpx;
+  animation-duration: 3s;
+}
+.motion-tile .card {
+  width: 320rpx;
+  box-shadow: none;
+  border: 1rpx solid #eee;
+}
+.motion-tile .card-art {
+  height: 210rpx;
+}
+.motion-tile .card-name {
+  font-size: 39rpx;
+  margin-top: 15rpx;
+}
+.motion-tile .card-short {
+  font-size: 24rpx;
+}
+.motion-layer.nope .motion-tile {
+  animation-duration: 3s;
+}
+.motion-layer.draw .motion-tile,
+.motion-layer.future .motion-tile {
+  animation-duration: 1.6s;
+}
+.motion-count {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  background: #0066cc;
+  color: #fff;
+  border-radius: 24rpx;
+  padding: 9rpx 18rpx;
+  font-weight: 600;
+}
+@keyframes card-arrive {
+  0% {
+    opacity: 0;
+    transform: translateY(112rpx) rotate(-5deg) scale(0.92);
+  }
+  17%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22rpx);
+  }
+}
+@keyframes nope-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.15) rotate(-7deg);
+  }
+  17%,
+  90% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.reduced .motion-tile {
+  animation: none !important;
+}

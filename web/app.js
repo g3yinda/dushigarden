@@ -27,6 +27,7 @@ const S = {
   localMode: false,
   botCount: 1,
   respondNope: false,
+  noTurnTimer: false,
   error: "",
   connection: "",
   settings: JSON.parse(
@@ -35,13 +36,26 @@ const S = {
   poll: 0,
   clockOffset: 0,
 };
+const motionPlayer = U.createMotionPlayer({
+  show: (effect) => {
+    S.motion = effect;
+    renderMotion();
+  },
+});
+function renderMotion() {
+  const host = $("#motion-host");
+  if (!host) return;
+  host.innerHTML = S.motion
+    ? `<div class="motion-layer ${S.motion.kind}"><div class="motion-tile" role="status">${S.motion.card ? card(S.motion.card) : "◉"}${S.motion.count > 1 ? `<span class="motion-count">× ${S.motion.count}</span>` : ""}<strong>${esc(S.motion.title)}</strong></div></div>`
+    : "";
+}
 function avatar(p, cls = "") {
   let a = U.avatars[Number(p.avatar ?? p.id) % 4] || U.avatars[0];
   return `<div class="avatar ${cls}"><img src="/ui.jpg" alt="${esc(a.name)}猫" style="${a.style}"></div>`;
 }
 function card(c, select = false) {
   c = U.card(c);
-  return `<${select ? "button" : "div"} class="card ${S.selected.includes(c.id) ? "selected" : ""}" ${select ? `data-action="card" data-id="${esc(c.id)}" aria-pressed="${S.selected.includes(c.id)}" aria-label="${esc(c.name)}，${esc(c.description)}"` : ""}><div class="card-art"><img alt="" src="/${c.source}" style="${c.art}"></div><strong>${esc(c.name)}</strong><small>${esc(c.short)}</small></${select ? "button" : "div"}>`;
+  return `<${select ? "button" : "div"} class="card ${S.selected.includes(c.id) ? "selected" : ""}" ${select ? `data-action="card" data-id="${esc(c.id)}" aria-pressed="${S.selected.includes(c.id)}" aria-label="${esc(c.name)}，${esc(c.description)}"` : ""}><div class="card-art"><img alt="" src="/${c.source}" style="${c.art}"></div>${select ? `<span class="card-spine">${esc(c.name)}</span><span class="card-check" aria-hidden="true">✓</span>` : ""}<strong>${esc(c.name)}</strong><small>${esc(c.short)}</small></${select ? "button" : "div"}>`;
 }
 function btn(text, action, kind = "primary", disabled = false, extra = "") {
   return `<button class="${kind}" data-action="${action}" ${disabled || S.busy ? "disabled" : ""} ${extra}>${text}</button>`;
@@ -75,7 +89,10 @@ function accept(r) {
   const old = S.room;
   if (old?.code === r.code && old.revision > r.revision) return;
   S.room = r;
-  if (S.modal === "bots" && !U.derive(r, [], S.localMode).botCounts.includes(S.botCount))
+  if (
+    S.modal === "bots" &&
+    !U.derive(r, [], S.localMode).botCounts.includes(S.botCount)
+  )
     S.botCount = 1;
   S.clockOffset = r.serverNow - Date.now();
   S.selected = S.selected.filter((id) => r.game?.hand.some((c) => c.id === id));
@@ -85,15 +102,9 @@ function accept(r) {
     S.position = 1;
     if (S.settings.sound) tone();
   }
-  const effect = U.motion(old, r);
-  if (effect) {
-    S.motion = effect;
-    clearTimeout(S.motionTimer);
-    S.motionTimer = setTimeout(() => {
-      S.motion = null;
-      document.querySelector(".motion-layer")?.remove();
-    }, 850);
-  }
+  if (old?.code !== r.code || old?.game?.id !== r.game?.id)
+    motionPlayer.clear();
+  U.motions(old, r).forEach((effect) => motionPlayer.push(effect));
   render();
 }
 async function session() {
@@ -152,6 +163,7 @@ async function cmd(type, payload = {}) {
     if (type === "leave") {
       S.resume = !!r;
       S.room = null;
+      motionPlayer.clear();
       S.selected = [];
       S.modal = null;
       render();
@@ -185,6 +197,7 @@ async function poll() {
       if (epoch !== S.poll) return;
       if ([401, 403, 404].includes(e.status)) {
         S.poll++;
+        motionPlayer.clear();
         S.room = null;
         S.modal = null;
         if (e.status === 401) {
@@ -220,11 +233,13 @@ function lobby() {
   return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""></div><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–5 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
 }
 function waiting(r, v) {
-  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/5 人 · 每人 8 张起手牌</p>`;
+  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${v.noTurnTimer ? "∞ 出牌不限时 · 否定窗口 5 秒" : "出牌 30 秒 · 超时自动托管"}</p><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/5 人 · 每人 8 张起手牌</p>`;
 }
 function game(r, v) {
   const g = r.game;
-  return `<div class="top">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">房间号 ${esc(r.code)}</p></div>${btn("⚙", "settings", "circle")}</div><div class="opponents">${v.players.map((p) => `<div class="opponent ${p.active ? "active" : ""} ${!p.alive ? "out" : ""}">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="tag">${p.alive ? `${p.count} 张牌` : "已出局"}</span></div>`).join("")}</div>${g.phase === "finished" ? `<div class="winner">${avatar(v.players.find((p) => p.id === g.winner) || { avatar: 0 })}<h1 style="font-size:32px">${esc(v.winnerName)}获胜</h1><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="table center"><div class="turn-label"><strong>${esc(v.phaseTitle)}</strong><span>${g.remaining} 个回合</span><span data-countdown></span></div><div class="piles"><div class="pile"><div class="card-back">🐾</div>牌堆 · ${g.deckCount} 张</div><div class="pile">${v.discard ? `<div class="empty-pile" style="background:white;border-style:solid"><strong>${esc(v.discard.name)}</strong></div>` : '<div class="empty-pile">暂无出牌</div>'}弃牌堆</div></div></div>${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。你的手牌只对自己可见。</div>' : ""}<div class="hand-caption"><span>你的手牌 ${g.hand.length} 张 · 左右滑动</span>${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div><div class="hand">${g.hand.map((c) => card(c, true)).join("")}</div><div class="selection">${esc(v.selection.hint)}${S.selected.length === 1 ? btn("查看卡牌详情", "detail", "text-btn") : ""}</div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : ""}${v.selection.valid ? btn("出牌" + (S.selected.length > 1 ? ` · ${S.selected.length} 张组合` : ""), "prepare") : ""}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束本回合", "draw", S.selected.length ? "secondary" : "primary") : ""}</div>`}<div class="logs"><p>对局动态</p>${(
+  const finished = g.phase === "finished";
+  const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · 朋友局</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong>${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div><div class="hand" role="group" aria-label="可滑动的折叠手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -232,7 +247,7 @@ function game(r, v) {
     .join("")}${(g.logs || [])
     .slice(-5)
     .map((l) => `<p>${esc(l.text)}</p>`)
-    .join("")}</div>`;
+    .join("")}</details>`;
 }
 function phase(r, v) {
   let g = r.game;
@@ -254,6 +269,10 @@ function modal() {
     title = "";
   let v = U.derive(S.room, S.selected, S.localMode);
   switch (S.modal) {
+    case "create":
+      title = "一起开一局";
+      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、拆弹和插回都不限时；否定窗口仍为 5 秒。离线后由系统托管。</p>${btn("创建好友房", "create-submit")}`;
+      break;
     case "bots":
       title = "添加验证 Bot";
       body = `<p class="muted">Bot 会自动准备并参与对局。你仍需要点击准备，再开始游戏。</p><label for="bot-count">添加数量</label><select id="bot-count">${v.botCounts.map((count) => `<option value="${count}" ${count === S.botCount ? "selected" : ""}>${count} 位 Bot</option>`).join("")}</select><label class="switch">Bot 使用否定牌<input id="bot-nope" type="checkbox" ${S.respondNope ? "checked" : ""}></label><p class="muted">默认关闭，方便观察卡牌效果；开启后 Bot 会在响应窗口使用否定牌。</p>${btn("添加 Bot", "bots-submit", "primary", !v.canAddBots || !v.botCounts.includes(S.botCount))}`;
@@ -283,8 +302,8 @@ function modal() {
       body = `<ol><li>2–5 位朋友，每人 8 张牌，至少有 1 张拆弹。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>出牌后有 5 秒否定窗口，否定也能被否定。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
       break;
     case "play":
-      title = "确认出牌";
-      body = `<p>${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>选择一位对手</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + esc(p.name) + (p.isBot ? " · Bot" : ""), "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}"`)).join("")}</div>` : ""}${
+      title = v.selection.needsTarget ? "选择一位对手" : "确认出牌";
+      body = `<div class="play-preview">${v.selectedCards.map((c) => card(c)).join("")}</div><p class="muted">${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>选择一位对手</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + `<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}</strong><span>${p.count} 张牌</span>`, "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}" aria-pressed="${S.target === p.id}"`)).join("")}</div>` : ""}${
         v.selection.needsNamed
           ? `<label for="named">声明想要的牌名</label><select id="named">${Object.entries(
               U.names,
@@ -303,24 +322,30 @@ function modal() {
       body = `<p>${S.room?.status === "playing" ? "你的席位将由系统托管到本局结束。回来后可继续原局，期间不能加入其他房间。" : "离开后可以重新创建或加入朋友的房间。"}</p>${btn("确认离开", "leave-submit")}`;
       break;
   }
-  return `<div class="overlay-screen"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
+  return `<div class="overlay-screen ${S.modal === "play" || S.modal === "create" ? "centered" : ""}"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
 }
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
   const r = S.room,
     v = U.derive(r, S.selected, S.localMode);
+  const handScroll = $(".hand")?.scrollLeft || 0;
   $("#app").innerHTML =
-    `<div class="shell">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}${S.motion && !S.settings.reduced ? `<div class="motion-layer ${S.motion.kind}" aria-hidden="true"><div class="motion-tile">${S.motion.card ? card(S.motion.card) : "◉"}<strong>${esc(S.motion.title)}</strong></div></div>` : ""}`;
+    `<div class="shell">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}`;
+  if ($(".hand")) $(".hand").scrollLeft = handScroll;
   countdown();
 }
 function countdown() {
   const node = $("[data-countdown]");
-  if (node && S.room?.game?.deadline)
-    node.textContent =
-      Math.max(
-        0,
-        Math.ceil((S.room.game.deadline - Date.now() - S.clockOffset) / 1000),
-      ) + "s";
+  if (!node) return;
+  if (!S.room?.game?.deadline) {
+    node.textContent = "∞ 不限时";
+    return;
+  }
+  node.textContent =
+    Math.max(
+      0,
+      Math.ceil((S.room.game.deadline - Date.now() - S.clockOffset) / 1000),
+    ) + "s";
 }
 setInterval(countdown, 250);
 document.addEventListener("input", (e) => {
@@ -331,6 +356,7 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("change", (e) => {
   if (e.target.id === "bot-count") S.botCount = Number(e.target.value);
+  if (e.target.id === "no-turn-timer") S.noTurnTimer = e.target.checked;
   if (e.target.id === "bot-nope") S.respondNope = e.target.checked;
   if (["reduced", "sound"].includes(e.target.id)) {
     S.settings[e.target.id] = e.target.checked;
@@ -343,6 +369,12 @@ document.addEventListener("click", async (e) => {
   if (!b || b.disabled || S.busy) return;
   const a = b.dataset.action;
   try {
+    if (a === "create") {
+      S.noTurnTimer = false;
+      S.modal = "create";
+      render();
+      return;
+    }
     if (a === "bots") {
       if (!U.derive(S.room, [], S.localMode).canAddBots) return;
       S.botCount = 1;
@@ -372,14 +404,14 @@ document.addEventListener("click", async (e) => {
       render();
       return;
     }
-    if (a === "create" || a === "join-submit") {
+    if (a === "create-submit" || a === "join-submit") {
       S.busy = true;
       const code = $("#code")?.value.trim();
       await session();
       accept(
         await api(
-          a === "create" ? "/rooms" : "/rooms/join",
-          a === "create" ? {} : { code },
+          a === "create-submit" ? "/rooms" : "/rooms/join",
+          a === "create-submit" ? { noTurnTimer: S.noTurnTimer } : { code },
         ),
       );
       S.modal = null;

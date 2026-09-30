@@ -197,3 +197,17 @@ test("微信生产模式即使身份有效也不能使用 Bot 接口", async (t)
     1,
   );
 });
+test("HTTP 建房传递不限时布尔选项，拒绝其他值且过滤时长覆盖", async (t) => {
+  const req = await fixture(t);
+  const a = (await req("/api/session", { name: "不限时猫" })).data;
+  for (const noTurnTimer of [null, 1, "false", {}, []]) {
+    const response = await req("/api/rooms", { noTurnTimer }, a.token);
+    assert.equal(response.status, 400);
+  }
+  const made = await req("/api/rooms", { noTurnTimer: true, nope: 1, action: 1, rules: { nope: 1 } }, a.token);
+  assert.equal(made.status, 200);
+  assert.deepEqual(made.data.options, { noTurnTimer: true });
+  const b = (await req("/api/session", { name: "普通猫" })).data;
+  const normal = await req("/api/rooms", {}, b.token);
+  assert.deepEqual(normal.data.options, { noTurnTimer: false });
+});

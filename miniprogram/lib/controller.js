@@ -139,13 +139,17 @@
     }));
     const base = {
       players: ps,
+      noTurnTimer: r.options?.noTurnTimer === true,
       isHost: r.hostId === id,
       myId: id,
       ready: !!r.players.find((p) => p.id === id)?.ready,
       canStart: r.players.length >= 2 && r.players.every((p) => p.ready),
       canAddBots:
-        localMode && r.status === "waiting" && !g &&
-        r.hostId === id && r.players.length < 5,
+        localMode &&
+        r.status === "waiting" &&
+        !g &&
+        r.hostId === id &&
+        r.players.length < 5,
       botCounts: Array.from(
         { length: Math.max(0, Math.min(4, 5 - r.players.length)) },
         (_, i) => i + 1,
@@ -153,6 +157,31 @@
       selection: selection(r, ids || []),
     };
     if (!g) return base;
+    const myIndex = ps.findIndex((p) => p.isMe);
+    const positions = {
+      2: [[50, 10]],
+      3: [
+        [18, 17],
+        [82, 17],
+      ],
+      4: [
+        [12, 47],
+        [50, 10],
+        [88, 47],
+      ],
+      5: [
+        [12, 47],
+        [30, 10],
+        [70, 10],
+        [88, 47],
+      ],
+    };
+    const tablePlayers = ps.map((_, i) => {
+      const p = ps[(Math.max(0, myIndex) + i) % ps.length];
+      const [x, y] =
+        i === 0 ? [50, 90] : positions[ps.length]?.[i - 1] || [50, 10];
+      return { ...p, seatStyle: `left:${x}%;top:${y}%;` };
+    });
     const alive = !!g.players.find((p) => p.id === id)?.alive,
       turn = g.current === id,
       current = g.players.find((p) => p.id === g.current);
@@ -167,6 +196,7 @@
     };
     return {
       ...base,
+      tablePlayers,
       alive,
       turn,
       phaseTitle: phases[g.phase] || "等待同步",
@@ -183,6 +213,7 @@
         ...card(c),
         selected: (ids || []).includes(c.id),
       })),
+      selectedCards: g.hand.filter((c) => (ids || []).includes(c.id)).map(card),
       future: (g.future || []).map(card),
       discard: g.discard?.length ? card(g.discard[g.discard.length - 1]) : null,
       targets: ps.filter(
@@ -246,12 +277,88 @@
       };
     if (b.discard?.length > a.discard?.length) {
       const c = b.discard[b.discard.length - 1];
-      return { kind: "play", title: "出牌 · " + names[c.type], card: card(c) };
+      const count = b.discard.length - (a.discard?.length || 0);
+      const actor =
+        b.players.find((p) => p.id === b.pending?.actor)?.name ||
+        a.players.find((p) => p.id === a.current)?.name ||
+        "玩家";
+      return {
+        kind: "play",
+        title: `${actor}打出 · ${names[c.type]}${count > 1 ? " ×" + count : ""}`,
+        count,
+        card: card(c),
+      };
     }
     const added = b.hand.find((c) => !a.hand.some((old) => old.id === c.id));
     if (added)
       return { kind: "draw", title: "获得一张新牌", card: card(added) };
     return null;
+  }
+  function motions(previous, next) {
+    const a = previous?.game,
+      b = next?.game;
+    if (!a || !b || a.id !== b.id) return [];
+    const last = Math.max(0, ...(a.logs || []).map((l) => l.id));
+    const effects = (b.logs || [])
+      .filter((l) => l.id > last && l.cardEvent)
+      .map((l) => {
+        const e = l.cardEvent;
+        const actor = b.players.find((p) => p.id === e.actor)?.name || "玩家";
+        const c = e.cards[0];
+        return {
+          kind: e.kind,
+          count: e.cards.length,
+          card: card(c),
+          title:
+            e.kind === "nope"
+              ? `${actor}${e.nopeCount % 2 ? "否定 · 动作取消" : "反否定 · 动作恢复"}`
+              : `${actor}打出 · ${names[c.type]}${e.cards.length > 1 ? " ×" + e.cards.length : ""}`,
+        };
+      });
+    const fallback = motion(previous, next);
+    if (!effects.length) return fallback ? [fallback] : [];
+    if (fallback && !["play", "nope"].includes(fallback.kind))
+      effects.push(fallback);
+    return effects;
+  }
+  function createMotionPlayer({
+    show,
+    schedule = setTimeout,
+    cancel = clearTimeout,
+  }) {
+    const queue = [];
+    let timer = null,
+      current = null,
+      generation = 0;
+    function next() {
+      current = queue.shift() || null;
+      show(current);
+      if (!current) {
+        timer = null;
+        return;
+      }
+      const token = generation;
+      const duration =
+        current.kind === "draw" || current.kind === "future" ? 1600 : 3000;
+      timer = schedule(() => {
+        if (token === generation) next();
+      }, duration);
+    }
+    return {
+      push(effect) {
+        if (!effect) return;
+        queue.push(effect);
+        if (!current) next();
+      },
+      clear() {
+        generation++;
+        if (timer !== null) cancel(timer);
+        timer = null;
+        current = null;
+        queue.length = 0;
+        show(null);
+      },
+    };
   }
   return {
     names,
@@ -262,5 +369,7 @@
     me,
     contextChanged,
     motion,
+    motions,
+    createMotionPlayer,
   };
 });

@@ -30,8 +30,8 @@ function shuffle(cards, rng) {
 function player(g, id) {
   return g.players.find((p) => p.id === id) || fail("玩家不在此对局中");
 }
-function log(g, text) {
-  g.logs.push({ id: ++g.eventId, text });
+function log(g, text, cardEvent = null) {
+  g.logs.push({ id: ++g.eventId, text, ...(cardEvent ? { cardEvent } : {}) });
   g.logs = g.logs.slice(-30);
 }
 function privateLog(g, id, text) {
@@ -41,13 +41,14 @@ function privateLog(g, id, text) {
 }
 function phase(g, name, now) {
   g.phase = name;
-  g.deadline = now + RULES[name];
+  g.deadline =
+    g.options?.noTurnTimer && name !== "nope" ? null : now + RULES[name];
 }
 function resume(g, now) {
   g.pending = null;
   g.future = null;
   g.phase = "action";
-  g.deadline = now + g.budget;
+  g.deadline = g.options?.noTurnTimer ? null : now + g.budget;
 }
 function next(g, id) {
   const i = g.players.findIndex((p) => p.id === id);
@@ -75,7 +76,12 @@ function remove(p, id) {
 }
 function createGame(
   players,
-  { rng = random, now = Date.now(), id = randomUUID() } = {},
+  {
+    rng = random,
+    now = Date.now(),
+    id = randomUUID(),
+    noTurnTimer = false,
+  } = {},
 ) {
   if (
     players.length < 2 ||
@@ -105,6 +111,7 @@ function createGame(
     id,
     version: 1,
     rulesVersion: "ek-original-2025-online-v1",
+    options: { noTurnTimer: noTurnTimer === true },
     players: ps,
     deck,
     discard: [],
@@ -118,7 +125,7 @@ function createGame(
     attacked: false,
     budget: RULES.action,
     phase: "action",
-    deadline: now + RULES.action,
+    deadline: noTurnTimer === true ? null : now + RULES.action,
     winner: null,
     logs: [],
     privateLogs: {},
@@ -262,7 +269,7 @@ function play(g, id, a, now) {
     if (type === "triple" && (!TYPES.includes(a.named) || a.named === "bomb"))
       fail("请选择要索取的牌名");
   }
-  g.budget = Math.max(0, g.deadline - now);
+  if (g.deadline !== null) g.budget = Math.max(0, g.deadline - now);
   g.discard.push(...cards.map((c) => remove(p, c.id)));
   g.pending = {
     actor: id,
@@ -281,6 +288,11 @@ function play(g, id, a, now) {
         : type === "triple"
           ? "三张组合，点名「" + CARDS[a.named].name + "」"
           : CARDS[kind].name),
+    {
+      kind: "play",
+      actor: id,
+      cards: cards.map((c) => ({ id: c.id, type: c.type })),
+    },
   );
   phase(g, "nope", now);
 }
@@ -288,7 +300,8 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   const g = clone(state);
   const p = player(g, id);
   if (!p.alive || g.phase === "finished") fail("你现在不能操作");
-  if (now >= g.deadline) throw new GameError("操作窗口已结束，请刷新", "STALE");
+  if (g.deadline !== null && now >= g.deadline)
+    throw new GameError("操作窗口已结束，请刷新", "STALE");
   if (a.type === "nope") {
     if (g.phase !== "nope") fail("现在没有可否定的动作");
     const c = p.hand.find((c) => c.id === a.cardId);
@@ -299,6 +312,12 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
       g,
       p.name +
         (g.pending.nopeCount % 2 ? " 否定了这个动作" : " 反否定，动作恢复"),
+      {
+        kind: "nope",
+        actor: id,
+        cards: [{ id: c.id, type: c.type }],
+        nopeCount: g.pending.nopeCount,
+      },
     );
     phase(g, "nope", now);
   } else if (g.phase === "favor" && a.type === "give") {
@@ -321,7 +340,12 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   return g;
 }
 function tick(state, { now = Date.now(), rng = random } = {}) {
-  if (state.phase === "finished" || now < state.deadline) return state;
+  if (
+    state.phase === "finished" ||
+    state.deadline === null ||
+    now < state.deadline
+  )
+    return state;
   const g = clone(state);
   switch (g.phase) {
     case "action":

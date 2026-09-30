@@ -20,10 +20,10 @@ function cmd(s, p, r, type, more = {}) {
     ...more,
   });
 }
-function started() {
+function started(options = {}) {
   const x = setup(),
     { s, a, b } = x;
-  let r = s.create(a.player.id);
+  let r = s.create(a.player.id, options);
   r = s.join(b.player.id, r.code);
   r = cmd(s, a.player.id, r, "ready", { ready: true });
   r = cmd(s, b.player.id, r, "ready", { ready: true });
@@ -145,3 +145,165 @@ test("编辑昵称头像后建房使用最新资料", () => {
   assert.equal(r.players[0].name, "新的小猫");
   assert.equal(r.players[0].avatar, 2);
 });
+test("房间选项默认 false，只接受布尔值且不接受自定义时长", () => {
+  const { s, a } = setup();
+  for (const noTurnTimer of [null, 1, "true", {}, []])
+    assert.throws(() => s.create(a.player.id, { noTurnTimer }));
+  const r = s.create(a.player.id, { action: 1, nope: 1 });
+  assert.deepEqual(r.options, { noTurnTimer: false });
+});
+test("不限时选项保存快照，重开沿用，旧快照缺项默认 false", () => {
+  const fs = require("node:fs");
+  const dir = mkdtempSync(join(tmpdir(), "boomcat-options-"));
+  try {
+    const { s, a, r } = started({ noTurnTimer: true });
+    assert.deepEqual(r.options, { noTurnTimer: true });
+    assert.equal(r.game.deadline, null);
+    s.file = join(dir, "state.json");
+    s.save();
+    const restored = new RoomService({ file: s.file, now: () => 1000 });
+    assert.deepEqual(restored.current(a.player.id).options, r.options);
+    assert.equal(restored.rooms[r.code].game.options.noTurnTimer, true);
+    restored.rooms[r.code].status = "aborted";
+    let next = cmd(restored, a.player.id, restored.current(a.player.id), "rematch");
+    assert.deepEqual(next.options, r.options);
+    for (const p of next.players) next = cmd(restored, p.id, next, "ready", { ready: true });
+    next = cmd(restored, a.player.id, next, "start");
+    assert.equal(next.game.deadline, null);
+    const data = JSON.parse(fs.readFileSync(s.file));
+    delete data.rooms[r.code].options;
+    delete data.rooms[r.code].game.options;
+    data.rooms[r.code].game.deadline = 31000;
+    fs.writeFileSync(s.file, JSON.stringify(data));
+    const legacy = new RoomService({ file: s.file, now: () => 1000 });
+    assert.deepEqual(legacy.current(a.player.id).options, { noTurnTimer: false });
+    assert.equal(legacy.current(a.player.id).game.deadline, 31000);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+const E = require("../server/engine");
+function phaseRoom(name) {
+  const x = started({ noTurnTimer: true });
+  const room = x.s.rooms[x.r.code], g = room.game;
+  g.current = x.a.player.id;
+  g.phase = name;
+  g.deadline = null;
+  if (name === "favor") g.pending = { actor: x.a.player.id, target: x.b.player.id, type: "favor", nopeCount: 0 };
+  if (name === "future") g.future = g.deck.slice(0, 3);
+  if (["defuse", "insert"].includes(name)) g.bomb = g.deck.splice(g.deck.findIndex((c) => c.type === "bomb"), 1)[0];
+  if (name === "action") {
+    const safe = g.deck.findIndex((c) => c.type !== "bomb");
+    [g.deck[0], g.deck[safe]] = [g.deck[safe], g.deck[0]];
+  }
+  E.assertInvariant(g);
+  return { ...x, room, responsible: name === "favor" ? x.b.player.id : x.a.player.id };
+}
+for (const name of ["action", "favor", "future", "defuse", "insert"])
+  test(`不限时 ${name} 在线等待，离线托管等待原阶段时长，回来取消`, () => {
+    const { s, time, r, responsible } = phaseRoom(name);
+    time(100000);
+    for (const p of s.rooms[r.code].players) s.touch(p.id, s.rooms[r.code]);
+    const before = s.rooms[r.code].game.version;
+    s.tick();
+    assert.equal(s.rooms[r.code].game.version, before);
+    cmd(s, responsible, s.view(responsible, r.code), "leave");
+    s.tick();
+    time(100000 + E.RULES[name] - 1);
+    for (const p of s.rooms[r.code].players) if (p.id !== responsible) s.touch(p.id, s.rooms[r.code]);
+    s.tick();
+    assert.equal(s.rooms[r.code].game.version, before);
+    s.touch(responsible, s.rooms[r.code]);
+    time(100000 + E.RULES[name]);
+    s.tick();
+    assert.equal(s.rooms[r.code].game.version, before);
+    cmd(s, responsible, s.view(responsible, r.code), "leave");
+    s.tick();
+    const deadline = 100000 + 2 * E.RULES[name];
+    time(deadline - 1);
+    for (const p of s.rooms[r.code].players) if (p.id !== responsible) s.touch(p.id, s.rooms[r.code]);
+    s.tick();
+    assert.equal(s.rooms[r.code].game.version, before);
+    time(deadline);
+    s.tick();
+    assert.equal(s.rooms[r.code].game.version, before + 1);
+    assert.equal(s.rooms[r.code].game.deadline, null);
+    E.assertInvariant(s.rooms[r.code].game);
+  });
+test("网络断线在离线判定后等待正常时长，不限时仍在全员离线五分钟中止", () => {
+  const { s, time, r } = phaseRoom("action");
+  time(26000);
+  s.tick();
+  assert.equal(s.rooms[r.code].game.version, 1);
+  time(55999); s.tick();
+  assert.equal(s.rooms[r.code].game.version, 1);
+  time(56000); s.tick();
+  assert.equal(s.rooms[r.code].game.version, 2);
+  time(326000); s.tick();
+  assert.equal(s.rooms[r.code].status, "aborted");
+  assert.equal(s.rooms[r.code].game.winner, null);
+});
+test("不限时 Bot 在线并继续行动，不替真人阻止全员离线中止", () => {
+  const { s, a, time } = setup();
+  s.allowBots = true;
+  let r = s.create(a.player.id, { noTurnTimer: true });
+  r = cmd(s, a.player.id, r, "addBots", { count: 1, respondNope: false });
+  r = cmd(s, a.player.id, r, "ready", { ready: true });
+  r = cmd(s, a.player.id, r, "start");
+  const room = s.rooms[r.code];
+  const bot = room.players.find((p) => p.isBot);
+  room.game.current = bot.id;
+  const runner = new (require("../server/bots").BotRunner)(s, { delay: 0, rng: () => 0.99 });
+  const version = room.game.version;
+  assert.equal(room.game.deadline, null);
+  runner.step();
+  assert.equal(s.rooms[r.code].game.version, version + 1);
+  assert.equal(s.view(a.player.id, r.code).players.find((p) => p.isBot).online, true);
+  time(26000); s.tick();
+  time(326000); s.tick();
+  assert.equal(s.rooms[r.code].status, "aborted");
+});
+test("索要阶段仅目标离线才托管，行动发起人离线仍等待在线目标", () => {
+  const { s, time, a, b, r } = phaseRoom("favor");
+  cmd(s, a.player.id, s.view(a.player.id, r.code), "leave");
+  s.tick();
+  time(100000);
+  s.touch(b.player.id, s.rooms[r.code]);
+  s.tick();
+  assert.equal(s.rooms[r.code].game.phase, "favor");
+  assert.equal(s.rooms[r.code].game.version, 1);
+  assert.equal(s.rooms[r.code].game.deadline, null);
+});
+test("离线托管快照恢复保留截止时间和公开无限等待状态", () => {
+  const dir = mkdtempSync(join(tmpdir(), "boomcat-offline-"));
+  try {
+    const { s, a, b, r } = phaseRoom("action");
+    s.file = join(dir, "state.json");
+    cmd(s, a.player.id, s.view(a.player.id, r.code), "leave");
+    let now = 15000;
+    const restored = new RoomService({ file: s.file, now: () => now });
+    restored.tick();
+    assert.equal(restored.rooms[r.code].game.version, 1);
+    assert.equal(restored.current(a.player.id).game.deadline, null);
+    now = 31000;
+    restored.touch(b.player.id, restored.rooms[r.code]);
+    restored.tick();
+    assert.equal(restored.rooms[r.code].game.version, 2);
+    assert.equal(restored.current(a.player.id).game.deadline, null);
+    E.assertInvariant(restored.rooms[r.code].game);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+for (const name of ["action", "favor", "future", "defuse", "insert"])
+  test(`Bot 正常完成不限时 ${name} 选择`, () => {
+    const { s, r, responsible } = phaseRoom(name);
+    const room = s.rooms[r.code];
+    room.players.find((p) => p.id === responsible).isBot = true;
+    room.game.players.find((p) => p.id === responsible).isBot = true;
+    const runner = new (require("../server/bots").BotRunner)(s, {
+      delay: 0, rng: () => 0.99,
+    });
+    s.tick();
+    assert.equal(s.rooms[r.code].game.deadline, null);
+    assert.equal(s.rooms[r.code].game.version, 1);
+    runner.step();
+    assert.equal(s.rooms[r.code].game.version, 2);
+    E.assertInvariant(s.rooms[r.code].game);
+  });
