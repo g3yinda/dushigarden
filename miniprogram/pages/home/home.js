@@ -85,6 +85,9 @@ Page({
         header: {
           "content-type": "application/json",
           ...(this.token ? { Authorization: "Bearer " + this.token } : {}),
+          ...(config.debugToken
+            ? { "X-Boomcat-Debug": config.debugToken }
+            : {}),
         },
         success: (r) => {
           if (r.statusCode >= 200 && r.statusCode < 300) resolve(r.data);

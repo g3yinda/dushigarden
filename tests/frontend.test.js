@@ -187,7 +187,7 @@ function waitingRoom() {
   r.serverNow = Date.now();
   return r;
 }
-function nativeHarness(schedule = () => 1) {
+function nativeHarness(schedule = () => 1, configOverrides = {}, wxApi = {}) {
   let page;
   vm.runInNewContext(
     fs.readFileSync(
@@ -202,10 +202,11 @@ function nativeHarness(schedule = () => 1) {
               createMotionPlayer: (options) =>
                 ui.createMotionPlayer({ ...options, schedule }),
             }
-          : { localMode: true },
+          : { localMode: true, ...configOverrides },
       Page: (definition) => {
         page = definition;
       },
+      wx: wxApi,
       setTimeout: schedule,
       clearTimeout() {},
     },
@@ -581,4 +582,21 @@ test("browser failed leave resumes polling its existing room", async () => {
   assert.equal(h.state.busy, false);
   assert.equal(restarts, 1);
   assert.equal(h.nodes["#toast"].textContent, "离房失败");
+});
+test("native 真机请求电脑LAN地址并携带本地调试访问码", async () => {
+  let captured;
+  const page = nativeHarness(
+    () => 1,
+    { apiBase: "http://192.168.0.107:8787", debugToken: "debug-test" },
+    {
+      request: (options) => {
+        captured = options;
+        options.success({ statusCode: 200, data: { ok: true } });
+        return {};
+      },
+    },
+  );
+  await page.request("/rooms", { noTurnTimer: true });
+  assert.equal(captured.url, "http://192.168.0.107:8787/api/rooms");
+  assert.equal(captured.header["X-Boomcat-Debug"], "debug-test");
 });

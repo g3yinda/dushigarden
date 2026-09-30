@@ -4,6 +4,7 @@ const fs = require("node:fs"),
   assert = require("node:assert/strict"),
   { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
+require("./client-config").ensureClientConfig();
 function walk(dir) {
   return fs
     .readdirSync(dir, { withFileTypes: true })
@@ -58,6 +59,12 @@ console.log(
 );
 if (process.argv.includes("--release")) {
   const config = require("../miniprogram/config");
+  assert.equal(
+    config.phoneDebug === true,
+    false,
+    "正式发布前移除整个真机调试配置",
+  );
+  assert.equal(config.debugToken || "", "", "正式发布前移除真机调试访问码");
   assert.equal(config.localMode, false, "正式发布前关闭本地身份模式");
   assert.match(config.apiBase, /^https:\/\//, "正式发布需要 HTTPS 后端");
   assert.equal(project.setting.urlCheck, true, "正式发布前启用合法域名检查");

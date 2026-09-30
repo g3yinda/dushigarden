@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { RoomService, ServiceError } = require("./rooms");
 const { BotRunner } = require("./bots");
+const { canUseLocalDebug } = require("./debug-access");
 const cards = require("../shared/cards");
 function send(res, status, data) {
   if (res.writableEnded || res.destroyed) return;
@@ -61,7 +62,10 @@ function createServer({
   mode = "local",
   exchangeCode = exchangeWechatCode,
   pollMs = 20000,
+  lanToken = "",
 } = {}) {
+  if (lanToken && (mode !== "local" || !/^[a-f0-9]{64}$/.test(lanToken)))
+    throw new Error("真机调试访问码只能用于本地开发模式");
   service.allowBots = mode === "local";
   const bots = service.allowBots ? new BotRunner(service) : null;
   const limits = new Map();
@@ -91,12 +95,24 @@ function createServer({
       const route = url.pathname;
       const address = req.socket.remoteAddress;
       const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address);
+      const debugAccess = canUseLocalDebug({
+        mode,
+        address,
+        lanToken,
+        token: req.headers["x-boomcat-debug"],
+      });
       if (route.startsWith("/api/")) {
         limit("ip:" + address, 600);
         if (route === "/api/health" && req.method === "GET")
-          return send(res, 200, { ok: true, mode });
+          return send(res, 200, { ok: true, mode, phoneDebug: !!lanToken });
         if (route === "/api/cards" && req.method === "GET")
           return send(res, 200, cards);
+        if (mode === "local" && !debugAccess)
+          throw new ServiceError(
+            "请使用本机或有效的同 Wi-Fi 真机调试配置",
+            "FORBIDDEN",
+            403,
+          );
         if (route === "/api/session" && req.method === "POST") {
           limit("login:" + address, 30);
           const b = await body(req);
@@ -105,7 +121,7 @@ function createServer({
             if (typeof b.code !== "string" || !b.code || b.code.length > 256)
               throw new ServiceError("缺少微信登录凭证");
             identity = await exchangeCode(b.code);
-          } else if (!local)
+          } else if (!debugAccess)
             throw new ServiceError("开发身份仅允许本机访问", "FORBIDDEN", 403);
           return send(res, 200, service.session(b, identity));
         }
@@ -134,9 +150,9 @@ function createServer({
         }
         const botRoom = /^\/api\/rooms\/(\d{6})\/bots$/.exec(route);
         if (botRoom && req.method === "POST") {
-          if (mode !== "local" || !local)
+          if (mode !== "local" || !debugAccess)
             throw new ServiceError(
-              "验证 Bot 仅在本机开发模式可用",
+              "验证 Bot 仅在本地开发调试模式可用",
               "FORBIDDEN",
               403,
             );
@@ -256,8 +272,13 @@ function createServer({
   server.requestTimeout = 15000;
   return server;
 }
-if (require.main === module) {
-  const mode = process.env.NODE_ENV === "production" ? "wechat" : "local";
+function startServer({
+  mode = process.env.NODE_ENV === "production" ? "wechat" : "local",
+  host = process.env.HOST || "127.0.0.1",
+  port = Number(process.env.PORT || 8787),
+  lanToken = "",
+  announce = true,
+} = {}) {
   if (
     mode === "wechat" &&
     (!process.env.WX_APP_ID || !process.env.WX_APP_SECRET)
@@ -267,16 +288,24 @@ if (require.main === module) {
     file:
       process.env.DATA_FILE || path.resolve(__dirname, "../.data/state.json"),
   });
-  const server = createServer({ service, mode });
-  const port = Number(process.env.PORT || 8787);
-  const host = process.env.HOST || "127.0.0.1";
-  server.listen(port, host, () =>
-    console.log(`朋友局已启动 http://${host}:${port} (${mode})`),
-  );
+  const server = createServer({ service, mode, lanToken });
+  server.listen(port, host, () => {
+    if (announce) console.log(`朋友局已启动 http://${host}:${port} (${mode})`);
+  });
   for (const signal of ["SIGINT", "SIGTERM"])
     process.on(signal, () => {
       server.close(() => process.exit(0));
       server.closeAllConnections();
     });
+  return server;
 }
-module.exports = { createServer };
+if (require.main === module) {
+  const server = startServer();
+  if (process.env.NODE_ENV !== "production")
+    server.once("listening", () =>
+      require("../tools/client-config").writeClientConfig({
+        apiBase: `http://127.0.0.1:${Number(process.env.PORT || 8787)}`,
+      }),
+    );
+}
+module.exports = { createServer, startServer };

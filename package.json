@@ -1,6 +1,6 @@
 {
   "name": "boomcat-friends",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "朋友局 · 2–5 人炸弹猫微信小程序",
   "engines": {
@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
+    "dev:phone": "node tools/phone-debug.js",
     "test": "node --test test/*.test.js tests/*.test.js",
     "check": "node tools/check.js"
   }

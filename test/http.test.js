@@ -204,10 +204,147 @@ test("HTTP 建房传递不限时布尔选项，拒绝其他值且过滤时长覆
     const response = await req("/api/rooms", { noTurnTimer }, a.token);
     assert.equal(response.status, 400);
   }
-  const made = await req("/api/rooms", { noTurnTimer: true, nope: 1, action: 1, rules: { nope: 1 } }, a.token);
+  const made = await req(
+    "/api/rooms",
+    { noTurnTimer: true, nope: 1, action: 1, rules: { nope: 1 } },
+    a.token,
+  );
   assert.equal(made.status, 200);
   assert.deepEqual(made.data.options, { noTurnTimer: true });
   const b = (await req("/api/session", { name: "普通猫" })).data;
   const normal = await req("/api/rooms", {}, b.token);
   assert.deepEqual(normal.data.options, { noTurnTimer: false });
+});
+
+// Exercise the real HTTP handler with the socket source seen from a phone.
+async function lanRequest(
+  server,
+  path,
+  data,
+  { debugToken, token, address = "192.168.0.22", forwarded } = {},
+) {
+  const { Readable } = require("node:stream");
+  const req = Readable.from(data === undefined ? [] : [JSON.stringify(data)]);
+  req.url = path;
+  req.method = data === undefined ? "GET" : "POST";
+  req.socket = { remoteAddress: address };
+  req.headers = {
+    "content-type": "application/json",
+    ...(debugToken ? { "x-boomcat-debug": debugToken } : {}),
+    ...(token ? { authorization: "Bearer " + token } : {}),
+    ...(forwarded ? { "x-forwarded-for": forwarded } : {}),
+  };
+  return new Promise((resolve) => {
+    const res = {
+      writableEnded: false,
+      destroyed: false,
+      setHeader() {},
+      writeHead(status) {
+        this.status = status;
+      },
+      end(body) {
+        this.writableEnded = true;
+        resolve({ status: this.status, data: JSON.parse(body) });
+      },
+    };
+    server.emit("request", req, res);
+  });
+}
+test("真机私网HTTP登录建房Bot需访问码，转发头不能替代真实来源", async (t) => {
+  const debugToken = "c".repeat(64);
+  const server = createServer({
+    service: new RoomService(),
+    lanToken: debugToken,
+  });
+  t.after(() => server.close());
+  assert.equal(
+    (await lanRequest(server, "/api/session", { name: "手机" })).status,
+    403,
+  );
+  assert.equal(
+    (
+      await lanRequest(
+        server,
+        "/api/session",
+        { name: "手机" },
+        { debugToken: "wrong" },
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await lanRequest(
+        server,
+        "/api/session",
+        { name: "手机" },
+        { debugToken, address: "203.0.113.2", forwarded: "127.0.0.1" },
+      )
+    ).status,
+    403,
+  );
+  const session = await lanRequest(
+    server,
+    "/api/session",
+    { name: "手机" },
+    { debugToken },
+  );
+  assert.equal(session.status, 200);
+  const token = session.data.token;
+  assert.equal(
+    (await lanRequest(server, "/api/rooms", {}, { token })).status,
+    403,
+  );
+  const made = await lanRequest(
+    server,
+    "/api/rooms",
+    { noTurnTimer: true },
+    { debugToken, token },
+  );
+  assert.equal(made.status, 200);
+  const r = made.data;
+  const bots = await lanRequest(
+    server,
+    "/api/rooms/" + r.code + "/bots",
+    {
+      count: 1,
+      respondNope: false,
+      revision: r.revision,
+      commandId: "phone-bot",
+    },
+    { debugToken, token },
+  );
+  assert.equal(bots.status, 200);
+  assert.equal(bots.data.players.length, 2);
+  assert.equal(
+    (
+      await lanRequest(server, "/api/rooms/" + r.code, undefined, {
+        debugToken,
+        token,
+      })
+    ).status,
+    200,
+  );
+  const health = await lanRequest(server, "/api/health");
+  assert.equal(health.data.phoneDebug, true);
+  assert(!JSON.stringify(health.data).includes(debugToken));
+});
+test("普通服务不会因为手机请求头而开启LAN身份，正式模式禁止LAN访问码配置", async (t) => {
+  const server = createServer({ service: new RoomService() });
+  t.after(() => server.close());
+  assert.equal(
+    (
+      await lanRequest(
+        server,
+        "/api/session",
+        { name: "手机" },
+        { debugToken: "c".repeat(64) },
+      )
+    ).status,
+    403,
+  );
+  assert.throws(
+    () => createServer({ mode: "wechat", lanToken: "c".repeat(64) }),
+    /只能用于本地开发/,
+  );
 });
