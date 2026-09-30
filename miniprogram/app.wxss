@@ -1,0 +1,74 @@
+page {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  background: #fff;
+  color: #1d1d1f;
+  font-size: 30rpx;
+}
+button {
+  font-size: 30rpx;
+  border-radius: 999rpx;
+  margin: 0;
+  line-height: 1.4;
+  padding: 20rpx 30rpx;
+  min-height: 88rpx;
+  background: none;
+  color: #1d1d1f;
+}
+button::after {
+  border: none;
+}
+button[disabled] {
+  opacity: 0.4;
+}
+input {
+  border: 1rpx solid #e3e3e8;
+  border-radius: 28rpx;
+  padding: 22rpx;
+  background: #fafafc;
+  min-height: 44rpx;
+}
+button:active {
+  opacity: 0.85;
+}
+
+button.circle {
+  width: 80rpx !important;
+  height: 80rpx !important;
+  min-height: 80rpx !important;
+  margin: 0 !important;
+  padding: 10rpx !important;
+}
+button.avatar {
+  width: 116rpx !important;
+  height: 116rpx !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+button.primary,
+button.secondary {
+  width: 100% !important;
+  display: block !important;
+  margin: 20rpx 0 0 !important;
+}
+button.card {
+  width: 180rpx !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 7rpx !important;
+}
+button.text-btn {
+  width: auto !important;
+  display: inline-block !important;
+  min-height: 80rpx !important;
+}
+button.remove {
+  width: auto !important;
+  min-height: 60rpx !important;
+}
+button.target {
+  width: auto !important;
+}
+button::after {
+  border: none !important;
+}
