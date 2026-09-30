@@ -24,6 +24,9 @@ const S = {
   named: "defuse",
   position: 1,
   busy: false,
+  localMode: false,
+  botCount: 1,
+  respondNope: false,
   error: "",
   connection: "",
   settings: JSON.parse(
@@ -72,6 +75,8 @@ function accept(r) {
   const old = S.room;
   if (old?.code === r.code && old.revision > r.revision) return;
   S.room = r;
+  if (S.modal === "bots" && !U.derive(r, [], S.localMode).botCounts.includes(S.botCount))
+    S.botCount = 1;
   S.clockOffset = r.serverNow - Date.now();
   S.selected = S.selected.filter((id) => r.game?.hand.some((c) => c.id === id));
   if (U.contextChanged(old, r)) {
@@ -107,9 +112,34 @@ async function refresh() {
   if (!S.room) return;
   accept(await api("/rooms/" + S.room.code));
 }
+async function addBots() {
+  const v = U.derive(S.room, [], S.localMode);
+  if (S.busy || !v.canAddBots || !v.botCounts.includes(S.botCount)) return;
+  S.busy = true;
+  render();
+  try {
+    const r = await api("/rooms/" + S.room.code + "/bots", {
+      count: S.botCount,
+      respondNope: S.respondNope,
+      revision: S.room.revision,
+      commandId: crypto.randomUUID(),
+    });
+    S.modal = null;
+    accept(r);
+  } catch (e) {
+    if (e.status === 409) {
+      await refresh().catch(() => {});
+      toast("房间人数或状态已变化，请查看最新房间后再添加 Bot");
+    } else toast(e.message);
+  } finally {
+    S.busy = false;
+    render();
+  }
+}
 async function cmd(type, payload = {}) {
   if (S.busy || !S.room) return;
   S.busy = true;
+  if (type === "leave") S.poll++;
   render();
   try {
     let r = await api("/rooms/" + S.room.code + "/command", {
@@ -120,7 +150,6 @@ async function cmd(type, payload = {}) {
       ...payload,
     });
     if (type === "leave") {
-      S.poll++;
       S.resume = !!r;
       S.room = null;
       S.selected = [];
@@ -139,6 +168,7 @@ async function cmd(type, payload = {}) {
   } finally {
     S.busy = false;
     render();
+    if (type === "leave" && S.room) poll();
   }
 }
 async function poll() {
@@ -190,11 +220,11 @@ function lobby() {
   return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""></div><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–5 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
 }
 function waiting(r, v) {
-  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/5 人 · 每人 8 张起手牌</p>`;
+  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/5 人 · 每人 8 张起手牌</p>`;
 }
 function game(r, v) {
   const g = r.game;
-  return `<div class="top">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">房间号 ${esc(r.code)}</p></div>${btn("⚙", "settings", "circle")}</div><div class="opponents">${v.players.map((p) => `<div class="opponent ${p.active ? "active" : ""} ${!p.alive ? "out" : ""}">${avatar(p)}<strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span class="tag">${p.alive ? `${p.count} 张牌` : "已出局"}</span></div>`).join("")}</div>${g.phase === "finished" ? `<div class="winner">${avatar(v.players.find((p) => p.id === g.winner) || { avatar: 0 })}<h1 style="font-size:32px">${esc(v.winnerName)}获胜</h1><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="table center"><div class="turn-label"><strong>${esc(v.phaseTitle)}</strong><span>${g.remaining} 个回合</span><span data-countdown></span></div><div class="piles"><div class="pile"><div class="card-back">🐾</div>牌堆 · ${g.deckCount} 张</div><div class="pile">${v.discard ? `<div class="empty-pile" style="background:white;border-style:solid"><strong>${esc(v.discard.name)}</strong></div>` : '<div class="empty-pile">暂无出牌</div>'}弃牌堆</div></div></div>${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。你的手牌只对自己可见。</div>' : ""}<div class="hand-caption"><span>你的手牌 ${g.hand.length} 张 · 左右滑动</span>${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div><div class="hand">${g.hand.map((c) => card(c, true)).join("")}</div><div class="selection">${esc(v.selection.hint)}${S.selected.length === 1 ? btn("查看卡牌详情", "detail", "text-btn") : ""}</div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : ""}${v.selection.valid ? btn("出牌" + (S.selected.length > 1 ? ` · ${S.selected.length} 张组合` : ""), "prepare") : ""}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束本回合", "draw", S.selected.length ? "secondary" : "primary") : ""}</div>`}<div class="logs"><p>对局动态</p>${(
+  return `<div class="top">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">房间号 ${esc(r.code)}</p></div>${btn("⚙", "settings", "circle")}</div><div class="opponents">${v.players.map((p) => `<div class="opponent ${p.active ? "active" : ""} ${!p.alive ? "out" : ""}">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="tag">${p.alive ? `${p.count} 张牌` : "已出局"}</span></div>`).join("")}</div>${g.phase === "finished" ? `<div class="winner">${avatar(v.players.find((p) => p.id === g.winner) || { avatar: 0 })}<h1 style="font-size:32px">${esc(v.winnerName)}获胜</h1><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="table center"><div class="turn-label"><strong>${esc(v.phaseTitle)}</strong><span>${g.remaining} 个回合</span><span data-countdown></span></div><div class="piles"><div class="pile"><div class="card-back">🐾</div>牌堆 · ${g.deckCount} 张</div><div class="pile">${v.discard ? `<div class="empty-pile" style="background:white;border-style:solid"><strong>${esc(v.discard.name)}</strong></div>` : '<div class="empty-pile">暂无出牌</div>'}弃牌堆</div></div></div>${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。你的手牌只对自己可见。</div>' : ""}<div class="hand-caption"><span>你的手牌 ${g.hand.length} 张 · 左右滑动</span>${btn("取消选择", "clear", "text-btn", !S.selected.length)}</div><div class="hand">${g.hand.map((c) => card(c, true)).join("")}</div><div class="selection">${esc(v.selection.hint)}${S.selected.length === 1 ? btn("查看卡牌详情", "detail", "text-btn") : ""}</div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : ""}${v.selection.valid ? btn("出牌" + (S.selected.length > 1 ? ` · ${S.selected.length} 张组合` : ""), "prepare") : ""}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束本回合", "draw", S.selected.length ? "secondary" : "primary") : ""}</div>`}<div class="logs"><p>对局动态</p>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -222,8 +252,12 @@ function modal() {
   if (!S.modal) return "";
   let body = "",
     title = "";
-  let v = U.derive(S.room, S.selected);
+  let v = U.derive(S.room, S.selected, S.localMode);
   switch (S.modal) {
+    case "bots":
+      title = "添加验证 Bot";
+      body = `<p class="muted">Bot 会自动准备并参与对局。你仍需要点击准备，再开始游戏。</p><label for="bot-count">添加数量</label><select id="bot-count">${v.botCounts.map((count) => `<option value="${count}" ${count === S.botCount ? "selected" : ""}>${count} 位 Bot</option>`).join("")}</select><label class="switch">Bot 使用否定牌<input id="bot-nope" type="checkbox" ${S.respondNope ? "checked" : ""}></label><p class="muted">默认关闭，方便观察卡牌效果；开启后 Bot 会在响应窗口使用否定牌。</p>${btn("添加 Bot", "bots-submit", "primary", !v.canAddBots || !v.botCounts.includes(S.botCount))}`;
+      break;
     case "detail":
       title = v.detail?.name || "卡牌详情";
       body = v.detail
@@ -250,7 +284,7 @@ function modal() {
       break;
     case "play":
       title = "确认出牌";
-      body = `<p>${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>选择一位对手</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + esc(p.name), "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}"`)).join("")}</div>` : ""}${
+      body = `<p>${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>选择一位对手</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + esc(p.name) + (p.isBot ? " · Bot" : ""), "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}"`)).join("")}</div>` : ""}${
         v.selection.needsNamed
           ? `<label for="named">声明想要的牌名</label><select id="named">${Object.entries(
               U.names,
@@ -274,7 +308,7 @@ function modal() {
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
   const r = S.room,
-    v = U.derive(r, S.selected);
+    v = U.derive(r, S.selected, S.localMode);
   $("#app").innerHTML =
     `<div class="shell">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}${S.motion && !S.settings.reduced ? `<div class="motion-layer ${S.motion.kind}" aria-hidden="true"><div class="motion-tile">${S.motion.card ? card(S.motion.card) : "◉"}<strong>${esc(S.motion.title)}</strong></div></div>` : ""}`;
   countdown();
@@ -293,8 +327,11 @@ document.addEventListener("input", (e) => {
   if (e.target.id === "name") S.name = e.target.value;
   if (e.target.id === "position") S.position = Number(e.target.value);
   if (e.target.id === "named") S.named = e.target.value;
+  if (e.target.id === "bot-count") S.botCount = Number(e.target.value);
 });
 document.addEventListener("change", (e) => {
+  if (e.target.id === "bot-count") S.botCount = Number(e.target.value);
+  if (e.target.id === "bot-nope") S.respondNope = e.target.checked;
   if (["reduced", "sound"].includes(e.target.id)) {
     S.settings[e.target.id] = e.target.checked;
     localStorage.setItem("boom.settings", JSON.stringify(S.settings));
@@ -303,9 +340,18 @@ document.addEventListener("change", (e) => {
 });
 document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-action]");
-  if (!b || b.disabled) return;
+  if (!b || b.disabled || S.busy) return;
   const a = b.dataset.action;
   try {
+    if (a === "bots") {
+      if (!U.derive(S.room, [], S.localMode).canAddBots) return;
+      S.botCount = 1;
+      S.respondNope = false;
+      S.modal = "bots";
+      render();
+      return;
+    }
+    if (a === "bots-submit") return await addBots();
     if (
       ["settings", "profile", "join", "rules", "leave", "detail"].includes(a)
     ) {
@@ -429,6 +475,13 @@ document.addEventListener("click", async (e) => {
 });
 async function boot() {
   render();
+  try {
+    const health = await api("/health");
+    S.localMode = health.ok === true && health.mode === "local";
+    render();
+  } catch {
+    S.localMode = false;
+  }
   if (S.token) {
     try {
       const r = await api("/rooms/current");

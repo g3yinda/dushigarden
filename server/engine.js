@@ -58,6 +58,7 @@ function next(g, id) {
   fail("没有存活玩家");
 }
 function endTurn(g, now) {
+  g.turnNumber = (g.turnNumber || 0) + 1;
   g.remaining--;
   if (g.remaining <= 0) {
     g.current = next(g, g.current);
@@ -113,6 +114,7 @@ function createGame(
     future: null,
     current: ps[Math.floor(rng() * n)].id,
     remaining: 1,
+    turnNumber: 1,
     attacked: false,
     budget: RULES.action,
     phase: "action",
@@ -196,6 +198,7 @@ function resolve(g, now, rng) {
     return;
   }
   if (a.type === "attack") {
+    g.turnNumber = (g.turnNumber || 0) + 1;
     g.remaining = (g.attacked ? g.remaining : 0) + 2;
     g.attacked = true;
     g.current = next(g, g.current);
@@ -362,12 +365,14 @@ function project(g, id) {
     phase: g.phase,
     current: g.current,
     remaining: g.remaining,
+    turnNumber: g.turnNumber || 0,
     attacked: g.attacked,
     deadline: g.deadline,
     players: g.players.map((p) => ({
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      isBot: !!p.isBot,
       alive: p.alive,
       count: p.hand.length,
     })),

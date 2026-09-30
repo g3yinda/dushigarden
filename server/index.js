@@ -3,6 +3,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const { RoomService, ServiceError } = require("./rooms");
+const { BotRunner } = require("./bots");
 const cards = require("../shared/cards");
 function send(res, status, data) {
   if (res.writableEnded || res.destroyed) return;
@@ -61,6 +62,8 @@ function createServer({
   exchangeCode = exchangeWechatCode,
   pollMs = 20000,
 } = {}) {
+  service.allowBots = mode === "local";
+  const bots = service.allowBots ? new BotRunner(service) : null;
   const limits = new Map();
   const waiting = new Map();
   const web = path.resolve(__dirname, "../web");
@@ -129,11 +132,32 @@ function createServer({
           const b = await body(req);
           return send(res, 200, service.join(p.id, b.code));
         }
+        const botRoom = /^\/api\/rooms\/(\d{6})\/bots$/.exec(route);
+        if (botRoom && req.method === "POST") {
+          if (mode !== "local" || !local)
+            throw new ServiceError(
+              "验证 Bot 仅在本机开发模式可用",
+              "FORBIDDEN",
+              403,
+            );
+          const b = await body(req);
+          return send(
+            res,
+            200,
+            service.command(p.id, botRoom[1], { ...b, type: "addBots" }),
+          );
+        }
         const room = /^\/api\/rooms\/(\d{6})(\/command)?$/.exec(route);
         if (room) {
           const code = room[1];
           if (room[2] && req.method === "POST") {
             const b = await body(req);
+            if (b.type === "addBots")
+              throw new ServiceError(
+                "请使用本地 Bot 验证入口",
+                "FORBIDDEN",
+                403,
+              );
             return send(res, 200, service.command(p.id, code, b));
           }
           if (!room[2] && req.method === "GET") {
@@ -219,12 +243,13 @@ function createServer({
   const timer = setInterval(() => {
     try {
       service.tick();
+      bots?.step();
       for (const [key, value] of limits)
         if (Date.now() > value.until) limits.delete(key);
     } catch (e) {
       console.error("房间维护失败", e.code || e.name);
     }
-  }, 1000);
+  }, 500);
   timer.unref();
   server.on("close", () => clearInterval(timer));
   server.headersTimeout = 10000;

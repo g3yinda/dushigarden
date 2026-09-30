@@ -125,12 +125,13 @@
         (cards[0].type === "defuse" ? "。注意：将消耗保命用的拆弹" : ""),
     };
   }
-  function derive(r, ids) {
+  function derive(r, ids, localMode = false) {
     if (!r) return {};
     const g = r.game,
       id = me(r);
     const ps = (g ? g.players : r.players).map((p) => ({
       ...p,
+      isBot: !!(p.isBot ?? r.players.find((seat) => seat.id === p.id)?.isBot),
       avatarStyle: avatars[Number(p.avatar) % 4]?.style || avatars[0].style,
       isMe: p.id === id,
       isHost: p.id === r.hostId,
@@ -142,6 +143,13 @@
       myId: id,
       ready: !!r.players.find((p) => p.id === id)?.ready,
       canStart: r.players.length >= 2 && r.players.every((p) => p.ready),
+      canAddBots:
+        localMode && r.status === "waiting" && !g &&
+        r.hostId === id && r.players.length < 5,
+      botCounts: Array.from(
+        { length: Math.max(0, Math.min(4, 5 - r.players.length)) },
+        (_, i) => i + 1,
+      ),
       selection: selection(r, ids || []),
     };
     if (!g) return base;

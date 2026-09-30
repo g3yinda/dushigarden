@@ -127,3 +127,73 @@ test("HTTP 资料修改仅属于当前会话", async (t) => {
   const r = (await req("/api/rooms", {}, a.token)).data;
   assert.equal(r.players[0].name, "新昵称");
 });
+test("本地房主可添加 Bot，旧版本与非房主不能添加，命令重发不重复占位", async (t) => {
+  const req = await fixture(t);
+  const a = (await req("/api/session", { name: "房主" })).data;
+  const b = (await req("/api/session", { name: "朋友" })).data;
+  let r = (await req("/api/rooms", {}, a.token)).data;
+  r = (await req("/api/rooms/join", { code: r.code }, b.token)).data;
+  const action = {
+    count: 2,
+    respondNope: false,
+    revision: r.revision,
+    commandId: "add-bots-once",
+  };
+  assert.equal(
+    (await req("/api/rooms/" + r.code + "/bots", action, b.token)).status,
+    403,
+  );
+  assert.equal(
+    (
+      await req(
+        "/api/rooms/" + r.code + "/bots",
+        { ...action, revision: 0 },
+        a.token,
+      )
+    ).status,
+    409,
+  );
+  const added = await req("/api/rooms/" + r.code + "/bots", action, a.token);
+  assert.equal(added.status, 200);
+  assert.equal(added.data.players.filter((p) => p.isBot).length, 2);
+  const repeated = await req("/api/rooms/" + r.code + "/bots", action, a.token);
+  assert.equal(repeated.data.players.length, 4);
+  assert.equal(
+    (
+      await req(
+        "/api/rooms/" + r.code + "/command",
+        {
+          ...action,
+          type: "addBots",
+          commandId: "bypass",
+          revision: added.data.revision,
+        },
+        a.token,
+      )
+    ).status,
+    403,
+  );
+});
+test("微信生产模式即使身份有效也不能使用 Bot 接口", async (t) => {
+  const req = await fixture(t, {
+    mode: "wechat",
+    exchangeCode: async () => "valid-owner",
+  });
+  const a = (await req("/api/session", { name: "真人", code: "valid" })).data;
+  const r = (await req("/api/rooms", {}, a.token)).data;
+  const response = await req(
+    "/api/rooms/" + r.code + "/bots",
+    {
+      count: 1,
+      respondNope: false,
+      revision: r.revision,
+      commandId: "prod-bot",
+    },
+    a.token,
+  );
+  assert.equal(response.status, 403);
+  assert.equal(
+    (await req("/api/rooms/" + r.code, null, a.token)).data.players.length,
+    1,
+  );
+});

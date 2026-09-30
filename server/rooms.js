@@ -17,11 +17,12 @@ const fail = (message, code, status) => {
 };
 const copy = (x) => JSON.parse(JSON.stringify(x));
 class RoomService extends EventEmitter {
-  constructor({ file = null, now = Date.now } = {}) {
+  constructor({ file = null, now = Date.now, allowBots = false } = {}) {
     super();
     this.setMaxListeners(200);
     this.file = file;
     this.now = now;
+    this.allowBots = allowBots;
     this.players = {};
     this.sessions = {};
     this.rooms = {};
@@ -150,6 +151,7 @@ class RoomService extends EventEmitter {
     return r;
   }
   online(p) {
+    if (p.isBot) return true;
     return !p.away && this.now() - (this.presence[p.id] ?? p.lastSeen) < 25000;
   }
   touch(id, r) {
@@ -182,6 +184,7 @@ class RoomService extends EventEmitter {
         id: p.id,
         name: p.name,
         avatar: p.avatar,
+        isBot: !!p.isBot,
         ready: p.ready,
         online: this.online(p),
       })),
@@ -196,6 +199,7 @@ class RoomService extends EventEmitter {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      isBot: !!p.isBot,
       ready: false,
       away: false,
       lastSeen: this.now(),
@@ -236,7 +240,7 @@ class RoomService extends EventEmitter {
     if (r.status !== "waiting") fail("这个房间已经开始");
     if (r.players.length >= 5) fail("房间已满");
     r.players.push(this.seat(id));
-    r.players.forEach((p) => (p.ready = false));
+    r.players.forEach((p) => (p.ready = !!p.isBot));
     this.changed(r);
     return this.view(id, code);
   }
@@ -263,7 +267,35 @@ class RoomService extends EventEmitter {
     // Clone before validation so rejected operations cannot mutate the authoritative room.
     const n = copy(r);
     const self = n.players.find((p) => p.id === id);
-    if (a.type === "ready") {
+    if (a.type === "addBots") {
+      if (!this.allowBots)
+        fail("验证 Bot 仅在本地开发模式可用", "FORBIDDEN", 403);
+      if (n.hostId !== id || self.isBot || n.status !== "waiting")
+        fail("仅房主能在准备阶段添加 Bot", "FORBIDDEN", 403);
+      if (
+        !Number.isInteger(a.count) ||
+        a.count < 1 ||
+        a.count > 4 ||
+        n.players.length + a.count > 5
+      )
+        fail("请选择 1–4 只 Bot，总人数不能超过 5 人");
+      if (typeof a.respondNope !== "boolean") fail("Bot 否定设置不正确");
+      n.players.forEach((p) => (p.ready = !!p.isBot));
+      for (let i = 0; i < a.count; i++) {
+        const number = n.players.filter((p) => p.isBot).length + 1;
+        const bot = {
+          id: crypto.randomUUID(),
+          name: "陪练猫 " + number,
+          avatar: number % 4,
+          isBot: true,
+          ready: true,
+          away: false,
+          respondNope: a.respondNope,
+          lastSeen: this.now(),
+        };
+        n.players.push(bot);
+      }
+    } else if (a.type === "ready") {
       if (n.status !== "waiting") fail("现在不能准备");
       if (typeof a.ready !== "boolean") fail("准备状态不正确");
       self.ready = a.ready;
@@ -276,7 +308,12 @@ class RoomService extends EventEmitter {
       )
         fail("需要至少 2 人且全员准备");
       n.game = E.createGame(
-        n.players.map(({ id, name, avatar }) => ({ id, name, avatar })),
+        n.players.map(({ id, name, avatar, isBot }) => ({
+          id,
+          name,
+          avatar,
+          isBot: !!isBot,
+        })),
         { now: this.now() },
       );
       n.status = "playing";
@@ -286,7 +323,7 @@ class RoomService extends EventEmitter {
       n.status = "waiting";
       n.game = null;
       n.players.forEach((p) => {
-        p.ready = false;
+        p.ready = !!p.isBot;
         p.away = false;
       });
     } else if (a.type === "leave") {
@@ -294,8 +331,10 @@ class RoomService extends EventEmitter {
         self.away = true;
       } else {
         n.players = n.players.filter((p) => p.id !== id);
-        n.players.forEach((p) => (p.ready = false));
-        if (n.hostId === id) n.hostId = n.players[0]?.id || null;
+        n.players.forEach((p) => (p.ready = !!p.isBot));
+        if (n.hostId === id)
+          n.hostId = n.players.find((p) => !p.isBot)?.id || null;
+        if (!n.players.some((p) => !p.isBot)) n.players = [];
       }
     } else if (a.type === "kick") {
       if (
@@ -306,12 +345,25 @@ class RoomService extends EventEmitter {
       )
         fail("现在不能移除此玩家");
       n.players = n.players.filter((p) => p.id !== a.target);
-      n.players.forEach((p) => (p.ready = false));
+      n.players.forEach((p) => (p.ready = !!p.isBot));
     } else {
       if (!active || !n.game) fail("当前不在对局中");
       if (a.gameId !== n.game.id) fail("对局已更新，请刷新", "STALE", 409);
       n.game = E.command(n.game, id, a, { now: this.now() });
       E.assertInvariant(n.game);
+      if (self.isBot && a.type === "play") {
+        // Save strategy progress atomically with the move so a restart cannot repeat it.
+        const turn = [
+          r.game.id,
+          r.game.turnNumber || 0,
+          r.game.current,
+          r.game.remaining,
+        ].join(":");
+        self.botTurn = {
+          turn,
+          played: (self.botTurn?.turn === turn ? self.botTurn.played : 0) + 1,
+        };
+      }
       if (n.game.phase === "finished") n.status = "finished";
     }
     n.commands[key] = signature;
@@ -330,7 +382,7 @@ class RoomService extends EventEmitter {
     const now = this.now();
     let dirty = false;
     for (const r of Object.values(this.rooms)) {
-      const online = r.players.filter((p) => this.online(p));
+      const online = r.players.filter((p) => !p.isBot && this.online(p));
       if (online.length) {
         r.offlineSince = null;
         if (!online.some((p) => p.id === r.hostId)) {

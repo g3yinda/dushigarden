@@ -19,6 +19,10 @@ Page({
     position: 1,
     positionIndex: 0,
     busy: false,
+    localMode: config.localMode === true,
+    botCount: 1,
+    botCountIndex: 0,
+    respondNope: false,
     connection: "",
     countdown: 0,
     settings: { reduced: false, sound: false },
@@ -155,10 +159,14 @@ Page({
     );
     const changed = U.contextChanged(old, r);
     const effect = U.motion(old, r);
+    const v = U.derive(r, selected, this.data.localMode);
     this.setData({
       room: r,
       selected,
-      v: U.derive(r, selected),
+      v,
+      ...(this.data.modal === "bots" && !v.botCounts.includes(this.data.botCount)
+        ? { botCount: 1, botCountIndex: 0 }
+        : {}),
       connection: "",
       motion: effect,
       ...(changed
@@ -230,6 +238,10 @@ Page({
   async command(type, payload = {}) {
     if (this.data.busy || !this.data.room) return;
     this.setData({ busy: true });
+    if (type === "leave") {
+      this.epoch = (this.epoch || 0) + 1;
+      if (this.pollRequest) this.pollRequest.abort();
+    }
     try {
       const r = await this.request(
         "/rooms/" + this.data.room.code + "/command",
@@ -243,7 +255,6 @@ Page({
         },
       );
       if (type === "leave") {
-        this.epoch++;
         this.setData({
           room: null,
           v: {},
@@ -262,10 +273,43 @@ Page({
       } else this.notice(e.message);
     } finally {
       this.setData({ busy: false });
+      if (type === "leave" && this.data.room && this.visible) this.poll();
     }
   },
   input(e) {
     this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
+  },
+  chooseBotCount(e) {
+    const index = Number(e.detail.value);
+    this.setData({
+      botCountIndex: index,
+      botCount: this.data.v.botCounts[index] || 1,
+    });
+  },
+  botSetting(e) {
+    this.setData({ respondNope: e.detail.value });
+  },
+  async addBots() {
+    const v = U.derive(this.data.room, [], this.data.localMode);
+    if (this.data.busy || !v.canAddBots || !v.botCounts.includes(this.data.botCount)) return;
+    this.setData({ busy: true });
+    try {
+      const r = await this.request("/rooms/" + this.data.room.code + "/bots", {
+        count: this.data.botCount,
+        respondNope: this.data.respondNope,
+        revision: this.data.room.revision,
+        commandId: Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
+      });
+      this.setData({ modal: "" });
+      this.accept(r);
+    } catch (e) {
+      if (e.status === 409) {
+        await this.refresh();
+        this.notice("房间人数或状态已变化，请查看最新房间后再添加 Bot");
+      } else this.notice(e.message);
+    } finally {
+      this.setData({ busy: false });
+    }
   },
   choosePosition(e) {
     const idx = Number(e.detail.value);
@@ -288,6 +332,12 @@ Page({
       id = e.currentTarget.dataset.id;
     if (this.data.busy) return;
     try {
+      if (a === "bots") {
+        if (!U.derive(this.data.room, [], this.data.localMode).canAddBots) return;
+        this.setData({ modal: "bots", botCount: 1, botCountIndex: 0, respondNope: false });
+        return;
+      }
+      if (a === "bots-submit") return await this.addBots();
       if (
         ["settings", "rules", "profile", "join", "leave", "detail"].includes(a)
       ) {
@@ -335,11 +385,11 @@ Page({
         let selected = this.data.selected.includes(id)
           ? this.data.selected.filter((x) => x !== id)
           : [...this.data.selected, id];
-        this.setData({ selected, v: U.derive(this.data.room, selected) });
+        this.setData({ selected, v: U.derive(this.data.room, selected, this.data.localMode) });
         return;
       }
       if (a === "clear") {
-        this.setData({ selected: [], v: U.derive(this.data.room, []) });
+        this.setData({ selected: [], v: U.derive(this.data.room, [], this.data.localMode) });
         return;
       }
       if (a === "prepare") {
