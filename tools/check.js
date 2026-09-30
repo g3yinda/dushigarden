@@ -40,7 +40,7 @@ for (const page of app.pages) {
       `${page}.${ext} 缺失`,
     );
 }
-for (const name of ["core.jpg", "cats.jpg", "ui.jpg"]) {
+for (const name of ["core.jpg", "cats.jpg", "ui.jpg", "expansion.jpg"]) {
   assert(fs.existsSync(path.join(root, "miniprogram/assets", name)));
   assert(fs.existsSync(path.join(root, "web", name)));
 }

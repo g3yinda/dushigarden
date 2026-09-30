@@ -40,7 +40,7 @@ test('公网测试可添加5只 Bot 并开六人局；生产模式仍必须微�
   };
   await move('addBots',{count:5,respondNope:false});
   await move('ready',{ready:true}); await move('start');
-  assert.equal(r.game.players.length,6); assert.equal(r.game.deckCount,9);
+  assert.equal(r.game.players.length,6); assert.equal(r.game.deckCount,28);
   const production=await fixture(t,{mode:'wechat',previewToken:'',exchangeCode:async()=>{throw Error('not expected');}});
   assert.equal((await production('/api/session',{name:'甲'})).status,400);
 });

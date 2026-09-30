@@ -1,11 +1,12 @@
 "use strict";
 const { randomInt, randomUUID } = require("node:crypto");
-const { CARDS, TYPES } = require("../shared/cards");
+const { CARDS, TYPES, BASE_TYPES, EXPANSION_TYPES, isHazard, validCombo } = require("../shared/cards");
 const RULES = {
   action: 30000,
   nope: 10000,
   favor: 15000,
   future: 10000,
+  alterFuture: 10000,
   defuse: 10000,
   insert: 15000,
 };
@@ -75,7 +76,7 @@ function resume(g, now) {
 function next(g, id) {
   const i = g.players.findIndex((p) => p.id === id);
   for (let k = 1; k <= g.players.length; k++) {
-    const p = g.players[(i + k) % g.players.length];
+    const p = g.players[(i + k * (g.direction || 1) + g.players.length) % g.players.length];
     if (p.alive) return p.id;
   }
   fail("没有存活玩家");
@@ -122,19 +123,20 @@ function createGame(
     hand: [make("defuse")],
   }));
   const deck = [];
-  for (const type of TYPES) {
-    if (["bomb", "defuse"].includes(type)) continue;
+  for (const type of (n === 6 ? TYPES : BASE_TYPES)) {
+    if (isHazard(type) || type === "defuse") continue;
     for (let i = 0; i < CARDS[type].count; i++) deck.push(make(type));
   }
   for (let i = 0; i < Math.min(2, 6 - n); i++) deck.push(make("defuse"));
   shuffle(deck, rng);
   for (const p of ps) p.hand.push(...deck.splice(0, 7));
-  for (let i = 0; i < n - 1; i++) deck.push(make("bomb"));
+  for (let i = 0; i < (n === 6 ? 4 : n - 1); i++) deck.push(make("bomb"));
+  if (n === 6) deck.push(make("imploding"));
   shuffle(deck, rng);
   const g = {
     id,
     version: 1,
-    rulesVersion: n === 6 ? "ek-original-2025-friends-6p-v1" : "ek-original-2025-online-v1",
+    rulesVersion: n === 6 ? "ek-imploding-2023-online-v1" : "ek-original-2025-online-v1",
     options: { noTurnTimer: noTurnTimer === true, nopeSeconds },
     players: ps,
     deck,
@@ -147,6 +149,7 @@ function createGame(
     remaining: 1,
     turnNumber: 1,
     attacked: false,
+    direction: 1,
     budget: RULES.action,
     phase: "action",
     deadline: noTurnTimer === true ? null : now + RULES.action,
@@ -160,25 +163,39 @@ function createGame(
   assertInvariant(g);
   return g;
 }
-function draw(g, now) {
+function draw(g, now, fromBottom = false) {
   const p = player(g, g.current);
   if (!g.deck.length) fail("牌堆异常为空");
-  const card = g.deck.shift();
-  if (card.type !== "bomb") {
+  const card = fromBottom ? g.deck.pop() : g.deck.shift();
+  if (!isHazard(card.type)) {
     p.hand.push(card);
     privateLog(g, p.id, "抽到「" + CARDS[card.type].name + "」");
-    log(g, p.name + " 抽了 1 张牌");
+    log(g, p.name + (fromBottom ? " 从牌底抽了 1 张牌" : " 抽了 1 张牌"));
     endTurn(g, now);
     return;
   }
   g.bomb = card;
-  log(g, p.name + " 抽到了炸弹猫");
-  if (p.hand.some((c) => c.type === "defuse")) {
-    phase(g, "defuse", now);
-    return;
+  if (card.type === "imploding") {
+    log(g, p.name + (card.faceUp ? " 抽到了翻面的内爆猫，无法拆弹" : " 首次抽到内爆猫，翻面后秘密放回"), {
+      kind: "implode", actor: p.id, cards: [clone(card)],
+    });
+    if (!card.faceUp) {
+      card.faceUp = true;
+      phase(g, "insert", now);
+      return;
+    }
+  } else {
+    log(g, p.name + " 抽到了炸弹猫");
+    if (p.hand.some(c => c.type === "defuse")) {
+      phase(g, "defuse", now);
+      return;
+    }
   }
+  eliminate(g, p, now);
+}
+function eliminate(g, p, now) {
   p.alive = false;
-  g.exploded.push(card);
+  g.exploded.push(g.bomb);
   g.bomb = null;
   log(g, p.name + " 爆炸出局，手牌已封存");
   const alive = g.players.filter((x) => x.alive);
@@ -208,10 +225,11 @@ function insert(g, position, now) {
     position > g.deck.length + 1
   )
     fail("插回位置不合法");
+  const name = CARDS[g.bomb.type].name;
   g.deck.splice(position - 1, 0, g.bomb);
   g.bomb = null;
-  privateLog(g, g.current, "炸弹放回牌顶第 " + position + " 张");
-  log(g, player(g, g.current).name + " 已秘密放回炸弹");
+  privateLog(g, g.current, name + "放回牌顶第 " + position + " 张");
+  log(g, player(g, g.current).name + " 已秘密放回" + name);
   endTurn(g, now);
 }
 function transfer(g, from, to, id) {
@@ -228,22 +246,27 @@ function resolve(g, now, rng) {
     resume(g, now);
     return;
   }
-  if (a.type === "attack") {
+  if (a.type === "attack" || a.type === "targetAttack") {
     g.turnNumber = (g.turnNumber || 0) + 1;
     g.remaining = (g.attacked ? g.remaining : 0) + 2;
     g.attacked = true;
-    g.current = next(g, g.current);
+    g.current = a.type === "targetAttack" ? a.target : next(g, g.current);
     g.budget = RULES.action;
     log(g, player(g, g.current).name + " 需要完成 " + g.remaining + " 个回合");
     resume(g, now);
-  } else if (a.type === "skip") endTurn(g, now);
+  } else if (a.type === "reverse") {
+    if (g.players.filter(p => p.alive).length > 2) g.direction = -(g.direction || 1);
+    log(g, "反转生效，结束一个回合");
+    endTurn(g, now);
+  } else if (a.type === "bottom") draw(g, now, true);
+  else if (a.type === "skip") endTurn(g, now);
   else if (a.type === "shuffle") {
     shuffle(g.deck, rng);
     log(g, "剩余牌堆已重新洗匀");
     resume(g, now);
-  } else if (a.type === "future") {
+  } else if (a.type === "future" || a.type === "alterFuture") {
     g.future = g.deck.slice(0, 3);
-    phase(g, "future", now);
+    phase(g, a.type, now);
   } else if (a.type === "favor") {
     phase(g, "favor", now);
   } else if (a.type === "pair" || a.type === "triple") {
@@ -270,12 +293,14 @@ function play(g, id, a, now) {
     (cid) => p.hand.find((c) => c.id === cid) || fail("这张牌不在你的手中"),
   );
   const kind = cards[0].type;
-  if (cards.some((c) => c.type !== kind) || kind === "bomb")
-    fail("组合必须是同名牌");
+  if (isHazard(kind) || (cards.length > 1 && !validCombo(cards)))
+    fail("组合必须同名，野猫只能替代同一种普通猫");
+  if (cards.some(c => CARDS[c.type]?.expansion) && g.rulesVersion !== "ek-imploding-2023-online-v1")
+    fail("本局未启用内爆猫扩展");
   let type = kind;
   if (
     cards.length === 1 &&
-    !["attack", "skip", "favor", "shuffle", "future"].includes(kind)
+    !["attack", "skip", "favor", "shuffle", "future", "targetAttack", "reverse", "bottom", "alterFuture"].includes(kind)
   )
     fail(
       kind === "nope"
@@ -286,11 +311,11 @@ function play(g, id, a, now) {
     );
   if (cards.length === 2) type = "pair";
   if (cards.length === 3) type = "triple";
-  if (["favor", "pair", "triple"].includes(type)) {
+  if (["favor", "pair", "triple", "targetAttack"].includes(type)) {
     const t = player(g, a.target);
-    if (t.id === id || !t.alive) fail("请选择另一名存活玩家");
-    if (type !== "triple" && !t.hand.length) fail("这位玩家没有手牌");
-    if (type === "triple" && (!TYPES.includes(a.named) || a.named === "bomb"))
+    if (!t.alive || (type !== "targetAttack" && t.id === id)) fail("请选择另一名存活玩家");
+    if (["favor", "pair"].includes(type) && !t.hand.length) fail("这位玩家没有手牌");
+    if (type === "triple" && (!TYPES.includes(a.named) || isHazard(a.named) || (EXPANSION_TYPES.includes(a.named) && g.rulesVersion !== "ek-imploding-2023-online-v1")))
       fail("请选择要索取的牌名");
   }
   if (g.deadline !== null) g.budget = Math.max(0, g.deadline - now);
@@ -298,7 +323,7 @@ function play(g, id, a, now) {
   g.pending = {
     actor: id,
     type,
-    target: ["favor", "pair", "triple"].includes(type) ? a.target : null,
+    target: ["favor", "pair", "triple", "targetAttack"].includes(type) ? a.target : null,
     named: type === "triple" ? a.named : null,
     count: cards.length,
     nopeCount: 0,
@@ -364,6 +389,15 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
     else if (g.phase === "insert" && a.type === "insert")
       insert(g, a.position, now);
     else if (g.phase === "future" && a.type === "closeFuture") resume(g, now);
+    else if (g.phase === "alterFuture" && a.type === "orderFuture") {
+      const ids = g.future.map(c => c.id);
+      if (!Array.isArray(a.order) || a.order.length !== ids.length || new Set(a.order).size !== ids.length || a.order.some(cid => !ids.includes(cid)))
+        fail("请确认牌顶全部卡牌的完整排列");
+      g.deck.splice(0, ids.length, ...a.order.map(cid => g.future.find(c => c.id === cid)));
+      privateLog(g, id, "已调整牌顶顺序");
+      log(g, p.name + " 已确认牌顶顺序");
+      resume(g, now);
+    }
     else fail("请先完成当前阶段");
   }
   g.version++;
@@ -391,6 +425,7 @@ function tick(state, { now = Date.now(), rng = random } = {}) {
       insert(g, 1 + Math.floor(rng() * (g.deck.length + 1)), now);
       break;
     case "future":
+    case "alterFuture":
       resume(g, now);
       break;
     case "favor": {
@@ -417,6 +452,8 @@ function project(g, id) {
     id: g.id,
     version: g.version,
     phase: g.phase,
+    rulesVersion: g.rulesVersion,
+    direction: g.direction || 1,
     current: g.current,
     remaining: g.remaining,
     turnNumber: g.turnNumber || 0,
@@ -432,6 +469,8 @@ function project(g, id) {
     })),
     hand: clone(p.hand),
     deckCount: g.deck.length,
+    deckTop: g.deck[0]?.type === "imploding" && g.deck[0].faceUp ? clone(g.deck[0]) : null,
+    deckBottom: g.deck.at(-1)?.type === "imploding" && g.deck.at(-1).faceUp ? clone(g.deck.at(-1)) : null,
     discard: clone(g.discard),
     pending: g.phase === "nope"
       ? { ...clone(g.pending), responses: clone(g.pending.responses || Object.fromEntries(g.players.filter(p => p.alive).map(p => [p.id, "waiting"]))) }
@@ -440,7 +479,7 @@ function project(g, id) {
     logs: clone(g.logs),
     privateLog: clone(g.privateLogs[id] || []),
   };
-  if (g.phase === "future" && g.current === id) view.future = clone(g.future);
+  if (["future", "alterFuture"].includes(g.phase) && g.current === id) view.future = clone(g.future);
   if (g.bomb) view.bomb = clone(g.bomb);
   return view;
 }
@@ -458,10 +497,10 @@ function assertInvariant(g) {
   )
     fail("卡牌守恒校验失败");
   const bombs =
-    g.deck.filter((c) => c.type === "bomb").length + (g.bomb ? 1 : 0);
+    g.deck.filter((c) => isHazard(c.type)).length + (g.bomb ? 1 : 0);
   if (bombs !== g.players.filter((p) => p.alive).length - 1)
     fail("炸弹数量校验失败");
-  if (g.players.some((p) => p.hand.some((c) => c.type === "bomb")))
+  if (g.players.some((p) => p.hand.some((c) => isHazard(c.type))))
     fail("手牌中出现炸弹");
   return true;
 }

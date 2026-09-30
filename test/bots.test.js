@@ -387,3 +387,92 @@ test("Bot 随快照恢复，重新开局自动准备，2–6 人最终可以结�
     assert(r.players.filter((p) => p.isBot).every((p) => p.ready));
   }
 });
+
+test("无计时六人 Bot 私密重排快照恢复，真人重连后继续且保留翻面内爆", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "boom-alter-bot-"));
+  try {
+    let now = 1000;
+    const file = path.join(dir, "state.json");
+    const s = new RoomService({ allowBots: true, file, now: () => now });
+    const h = s.session({ name: "人" }).player;
+    let r = s.create(h.id, { noTurnTimer: true });
+    r = command(s, h.id, r, "addBots", { count: 5, respondNope: false });
+    r = command(s, h.id, r, "ready", { ready: true });
+    r = command(s, h.id, r, "start");
+    const b = r.players.find((p) => p.isBot);
+    const g = s.rooms[r.code].game;
+    const hand = g.players.find((p) => p.id === b.id).hand;
+    const source = [g.deck, ...g.players.map((p) => p.hand)].find((cards) => cards.some((c) => c.type === "alterFuture"));
+    hand.unshift(source.splice(source.findIndex((c) => c.type === "alterFuture"), 1)[0]);
+    const imploding = g.deck.splice(g.deck.findIndex((c) => c.type === "imploding"), 1)[0];
+    imploding.faceUp = true;
+    g.deck.sort((a, b) => (a.type === "bomb") - (b.type === "bomb"));
+    g.deck.splice(1, 0, imploding);
+    g.current = b.id;
+    const runner = new bots.BotRunner(s, { now: () => now, rng: () => 0 });
+    runner.step();
+    now += 1500;
+    runner.step();
+    assert.equal(s.rooms[r.code].game.pending.type, "alterFuture");
+    now += E.RULES.nope + 1;
+    s.tick();
+    assert.equal(s.rooms[r.code].game.phase, "alterFuture");
+    assert.equal(s.view(b.id, r.code).game.future[1].id, imploding.id);
+    assert(!("future" in s.view(h.id, r.code).game));
+    command(s, h.id, s.view(h.id, r.code), "leave");
+    const restored = new RoomService({ allowBots: true, file, now: () => now });
+    const resumed = new bots.BotRunner(restored, { now: () => now, rng: () => 0 });
+    const revision = restored.rooms[r.code].revision;
+    resumed.step();
+    now += 1500;
+    resumed.step();
+    assert.equal(restored.rooms[r.code].revision, revision, "无人在线时不处理私密重排");
+    restored.touch(h.id, restored.rooms[r.code]);
+    resumed.step();
+    now += 1500;
+    resumed.step();
+    const result = restored.rooms[r.code].game;
+    assert.equal(result.phase, "action");
+    assert.equal(result.deadline, null);
+    assert.equal(result.deck[2].id, imploding.id);
+    assert.equal(result.deck[2].faceUp, true);
+    resumed.step();
+    now += 1500;
+    resumed.step();
+    assert.notEqual(restored.rooms[r.code].game.current, b.id, "已出牌的重排 Bot 继续安全抽牌");
+    E.assertInvariant(restored.rooms[r.code].game);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("Bot 首次抽到内爆后插回原牌，不消耗拆弹且保留翻面", () => {
+  let now = 1000;
+  const s = new RoomService({ allowBots: true, now: () => now });
+  const h = s.session({ name: "人" }).player;
+  let r = s.create(h.id, { noTurnTimer: true });
+  r = command(s, h.id, r, "addBots", { count: 5, respondNope: false });
+  r = command(s, h.id, r, "ready", { ready: true });
+  r = command(s, h.id, r, "start");
+  const b = r.players.find((p) => p.isBot);
+  const g = s.rooms[r.code].game;
+  const imploding = g.deck.splice(g.deck.findIndex((c) => c.type === "imploding"), 1)[0];
+  g.deck.unshift(imploding);
+  g.current = b.id;
+  const defuses = g.players.find((p) => p.id === b.id).hand.filter((c) => c.type === "defuse").length;
+  const runner = new bots.BotRunner(s, { now: () => now, rng: () => 0.99 });
+  runner.step();
+  now += 1500;
+  runner.step();
+  assert.equal(s.rooms[r.code].game.phase, "insert");
+  assert.equal(s.view(b.id, r.code).game.bomb.type, "imploding");
+  runner.step();
+  now += 1500;
+  runner.step();
+  const result = s.rooms[r.code].game;
+  assert.equal(result.deck.at(-1).id, imploding.id);
+  assert.equal(result.deck.at(-1).faceUp, true);
+  assert.equal(s.view(h.id, r.code).game.deckBottom.id, imploding.id);
+  assert.equal(result.players.find((p) => p.id === b.id).hand.filter((c) => c.type === "defuse").length, defuses);
+  E.assertInvariant(result);
+});

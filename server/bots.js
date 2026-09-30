@@ -3,6 +3,8 @@ const { randomInt, randomUUID } = require("node:crypto");
 const random = () => randomInt(0, 0x100000000) / 0x100000000;
 const pick = (list, rng) =>
   list[Math.min(list.length - 1, Math.floor(rng() * list.length))];
+const ordinaryCat = (c) => /^cat[1-5]$/.test(c.type);
+const faceUpImploding = (c) => c?.type === "imploding" && c.faceUp === true;
 
 // Receives exactly the same private projection as a real client. Never reads a deck or another hand.
 function chooseAction(
@@ -33,7 +35,7 @@ function chooseAction(
   if (g.phase === "favor") {
     if (g.pending?.target !== id || !hand.length) return null;
     const rank = (c) =>
-      c.type.startsWith("cat")
+      ordinaryCat(c) || c.type === "feral"
         ? 0
         : c.type === "nope"
           ? 1
@@ -55,7 +57,32 @@ function chooseAction(
         1 + Math.min(g.deckCount, Math.floor(rng() * (g.deckCount + 1))),
     };
   if (g.phase === "future") return { type: "closeFuture" };
+  if (g.phase === "alterFuture") {
+    if (!g.future) return null;
+    const hazard = (c) => c.type === "bomb" || c.type === "imploding";
+    return {
+      type: "orderFuture",
+      order: [...g.future].sort((a, b) => Number(hazard(a)) - Number(hazard(b))).map((c) => c.id),
+    };
+  }
   if (g.phase !== "action") return null;
+  const alive = g.players.filter((p) => p.alive);
+  const opponents = alive.filter((p) => p.id !== id);
+  const play = (c, targets = alive) => ({
+    type: "play",
+    cards: [c.id],
+    ...(c.type === "targetAttack" ? { target: pick(targets, rng).id } : {}),
+  });
+  const bottomAvailable = !faceUpImploding(g.deckBottom) && g.deckCount > 1;
+  if (faceUpImploding(g.deckTop)) {
+    // Unknown bottom is still a risk, but avoids a publicly known lethal top card.
+    const escape = hand.find((c) =>
+      ["skip", "attack", "reverse"].includes(c.type) ||
+      (c.type === "targetAttack" && opponents.length) ||
+      (c.type === "bottom" && bottomAvailable),
+    );
+    if (escape) return play(escape, opponents);
+  }
   if (played >= 1) return { type: "draw" };
   const targets = g.players.filter(
     (p) => p.id !== id && p.alive && p.count > 0,
@@ -63,24 +90,26 @@ function chooseAction(
   const actions = hand
     .filter(
       (c) =>
-        ["attack", "skip", "favor", "shuffle", "future"].includes(c.type) &&
-        (c.type !== "favor" || targets.length),
+        ["attack", "skip", "favor", "shuffle", "future", "targetAttack", "reverse", "bottom", "alterFuture"].includes(c.type) &&
+        (c.type !== "favor" || targets.length) &&
+        (c.type !== "bottom" || !faceUpImploding(g.deckBottom)),
     )
     .map((c) => ({
-      type: "play",
-      cards: [c.id],
+      ...play(c),
       ...(c.type === "favor" ? { target: pick(targets, rng).id } : {}),
     }));
-  for (const kind of new Set(
-    hand.filter((c) => c.type.startsWith("cat")).map((c) => c.type),
-  )) {
-    const same = hand.filter((c) => c.type === kind);
-    if (same.length >= 2 && targets.length) {
-      const count = same.length >= 3 ? 3 : 2;
+  const feral = hand.filter((c) => c.type === "feral");
+  const groups = [...new Set(hand.filter(ordinaryCat).map((c) => c.type))]
+    .map((kind) => [...hand.filter((c) => c.type === kind), ...feral]);
+  if (feral.length >= 2) groups.push(feral);
+  for (const same of groups) {
+    const count = same.length >= 3 ? 3 : 2;
+    const comboTargets = count === 3 ? opponents : targets;
+    if (same.length >= 2 && comboTargets.length) {
       actions.push({
         type: "play",
         cards: same.slice(0, count).map((c) => c.id),
-        target: pick(targets, rng).id,
+        target: pick(comboTargets, rng).id,
         ...(count === 3
           ? {
               named: hand.some((c) => c.type === "defuse")

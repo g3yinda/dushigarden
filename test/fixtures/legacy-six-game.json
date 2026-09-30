@@ -1,0 +1,305 @@
+{
+  "id": "legacy-six",
+  "version": 1,
+  "rulesVersion": "ek-original-2025-friends-6p-v1",
+  "options": {
+    "noTurnTimer": true,
+    "nopeSeconds": 10
+  },
+  "players": [
+    {
+      "id": "p0",
+      "name": "旧猫0",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:0",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:6",
+          "type": "attack"
+        },
+        {
+          "id": "legacy-six:39",
+          "type": "cat2"
+        },
+        {
+          "id": "legacy-six:7",
+          "type": "attack"
+        },
+        {
+          "id": "legacy-six:31",
+          "type": "nope"
+        },
+        {
+          "id": "legacy-six:8",
+          "type": "attack"
+        },
+        {
+          "id": "legacy-six:47",
+          "type": "cat4"
+        },
+        {
+          "id": "legacy-six:9",
+          "type": "attack"
+        }
+      ]
+    },
+    {
+      "id": "p1",
+      "name": "旧猫1",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:1",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:35",
+          "type": "cat1"
+        },
+        {
+          "id": "legacy-six:10",
+          "type": "skip"
+        },
+        {
+          "id": "legacy-six:43",
+          "type": "cat3"
+        },
+        {
+          "id": "legacy-six:11",
+          "type": "skip"
+        },
+        {
+          "id": "legacy-six:51",
+          "type": "cat5"
+        },
+        {
+          "id": "legacy-six:12",
+          "type": "skip"
+        },
+        {
+          "id": "legacy-six:33",
+          "type": "cat1"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "name": "旧猫2",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:2",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:13",
+          "type": "skip"
+        },
+        {
+          "id": "legacy-six:37",
+          "type": "cat2"
+        },
+        {
+          "id": "legacy-six:14",
+          "type": "favor"
+        },
+        {
+          "id": "legacy-six:41",
+          "type": "cat3"
+        },
+        {
+          "id": "legacy-six:15",
+          "type": "favor"
+        },
+        {
+          "id": "legacy-six:45",
+          "type": "cat4"
+        },
+        {
+          "id": "legacy-six:16",
+          "type": "favor"
+        }
+      ]
+    },
+    {
+      "id": "p3",
+      "name": "旧猫3",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:3",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:49",
+          "type": "cat5"
+        },
+        {
+          "id": "legacy-six:17",
+          "type": "favor"
+        },
+        {
+          "id": "legacy-six:30",
+          "type": "nope"
+        },
+        {
+          "id": "legacy-six:18",
+          "type": "shuffle"
+        },
+        {
+          "id": "legacy-six:32",
+          "type": "cat1"
+        },
+        {
+          "id": "legacy-six:19",
+          "type": "shuffle"
+        },
+        {
+          "id": "legacy-six:34",
+          "type": "cat1"
+        }
+      ]
+    },
+    {
+      "id": "p4",
+      "name": "旧猫4",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:4",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:20",
+          "type": "shuffle"
+        },
+        {
+          "id": "legacy-six:36",
+          "type": "cat2"
+        },
+        {
+          "id": "legacy-six:21",
+          "type": "shuffle"
+        },
+        {
+          "id": "legacy-six:38",
+          "type": "cat2"
+        },
+        {
+          "id": "legacy-six:22",
+          "type": "future"
+        },
+        {
+          "id": "legacy-six:40",
+          "type": "cat3"
+        },
+        {
+          "id": "legacy-six:23",
+          "type": "future"
+        }
+      ]
+    },
+    {
+      "id": "p5",
+      "name": "旧猫5",
+      "alive": true,
+      "hand": [
+        {
+          "id": "legacy-six:5",
+          "type": "defuse"
+        },
+        {
+          "id": "legacy-six:42",
+          "type": "cat3"
+        },
+        {
+          "id": "legacy-six:24",
+          "type": "future"
+        },
+        {
+          "id": "legacy-six:44",
+          "type": "cat4"
+        },
+        {
+          "id": "legacy-six:25",
+          "type": "future"
+        },
+        {
+          "id": "legacy-six:46",
+          "type": "cat4"
+        },
+        {
+          "id": "legacy-six:26",
+          "type": "future"
+        },
+        {
+          "id": "legacy-six:48",
+          "type": "cat5"
+        }
+      ]
+    }
+  ],
+  "deck": [
+    {
+      "id": "legacy-six:27",
+      "type": "nope"
+    },
+    {
+      "id": "legacy-six:53",
+      "type": "bomb"
+    },
+    {
+      "id": "legacy-six:50",
+      "type": "cat5"
+    },
+    {
+      "id": "legacy-six:55",
+      "type": "bomb"
+    },
+    {
+      "id": "legacy-six:28",
+      "type": "nope"
+    },
+    {
+      "id": "legacy-six:54",
+      "type": "bomb"
+    },
+    {
+      "id": "legacy-six:29",
+      "type": "nope"
+    },
+    {
+      "id": "legacy-six:56",
+      "type": "bomb"
+    },
+    {
+      "id": "legacy-six:52",
+      "type": "bomb"
+    }
+  ],
+  "discard": [],
+  "exploded": [],
+  "bomb": null,
+  "pending": null,
+  "future": null,
+  "current": "p3",
+  "remaining": 1,
+  "turnNumber": 1,
+  "attacked": false,
+  "budget": 30000,
+  "phase": "action",
+  "deadline": null,
+  "winner": null,
+  "logs": [
+    {
+      "id": 1,
+      "text": "对局开始，抽牌会结束一个回合。"
+    }
+  ],
+  "privateLogs": {},
+  "eventId": 1,
+  "totalCards": 57
+}

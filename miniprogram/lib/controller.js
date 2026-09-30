@@ -12,6 +12,12 @@
     shuffle: "洗牌",
     future: "预知 ×3",
     nope: "否定",
+    imploding: "内爆猫",
+    targetAttack: "定向攻击 ×2",
+    reverse: "反转",
+    bottom: "抽牌底",
+    alterFuture: "调整未来 ×3",
+    feral: "野猫",
     cat1: "困困猫",
     cat2: "饭团猫",
     cat3: "宇航猫",
@@ -19,6 +25,12 @@
     cat5: "摇滚猫",
   };
   const descriptions = {
+    imploding: "首次抽到，翻面并秘密插回，不消耗拆弹；再次抽到立即出局，不能拆弹或否定。",
+    targetAttack: "不抽牌，指定任一存活玩家（包括自己）行动两回合；被攻击时转移剩余回合再加二。",
+    reverse: "反转行动方向，不抽牌并完成一个回合；只有两人存活时按跳过处理。",
+    bottom: "从牌堆底抽一张并完成一个回合；抽到炸弹或内爆猫仍按危险牌规则处理。",
+    alterFuture: "秘密查看牌顶最多三张，调整顺序并确认；完成后仍需继续回合。",
+    feral: "只可代替一种普通猫组成对子或三张，也可全用野猫组合；不能替代功能牌，单张无效果。",
     bomb: "抽到它会爆炸！有拆弹就能保命。",
     defuse: "抽到炸弹时使用，然后秘密放回炸弹。也能作为同名组合材料。",
     attack: "结束自己的回合，让下家行动两回合；被攻击时转移剩余回合再加二。",
@@ -50,6 +62,12 @@
     cat5: [606, 598, 325, 265],
   };
   const shorts = {
+    imploding: "翻面后再抽即出局",
+    targetAttack: "指定玩家行动 2 回合",
+    reverse: "反转方向，免抽 1 回合",
+    bottom: "抽牌底，完成 1 回合",
+    alterFuture: "重排牌顶最多 3 张",
+    feral: "普通猫组合万能牌",
     bomb: "抽到就爆炸",
     defuse: "抵消一次爆炸",
     attack: "下家行动 2 回合",
@@ -59,18 +77,37 @@
     future: "偷看牌顶 3 张",
     nope: "取消或恢复动作",
   };
+  const expansionTypes = ["imploding", "targetAttack", "reverse", "bottom", "alterFuture", "feral"];
+  const symbols = { imploding: "✹", targetAttack: "◎", reverse: "↺", bottom: "↓", alterFuture: "⇅", feral: "★" };
+  function namedOptions(r) {
+    const expanded = r?.game?.rulesVersion === "ek-imploding-2023-online-v1";
+    return Object.entries(names)
+      .filter(([type]) => !["bomb", "imploding"].includes(type) && (expanded || !expansionTypes.includes(type)))
+      .map(([value, label]) => ({ value, label }));
+  }
   function card(c) {
+    const expansionIndex = expansionTypes.indexOf(c.type);
+    const imploding = c.type === "imploding";
+    const faceUp = c.faceUp === true;
     const [x, y, w, h] = crops[c.type] || crops.cat1;
     return {
       ...c,
       name: names[c.type] || c.type,
       description:
-        descriptions[c.type] ||
+        (imploding
+          ? faceUp
+            ? "当前已翻面，抽到立即出局。拆弹无法保命，也不能否定；可在调整未来时改变它的位置。"
+            : "当前未翻面，首次抽到翻面并秘密放回，不消耗拆弹；以后再抽到会立即出局，不能拆弹或否定。"
+          : descriptions[c.type]) ||
         "单张无效果。两张同名随机取牌；三张同名声明一种牌并向对手索取。",
-      short: shorts[c.type] || "同名组合偷牌",
-      source: c.type.startsWith("cat") ? "cats.jpg" : "core.jpg",
-      art: `width:${153600 / w}%;left:${(-100 * x) / w}%;top:${(-100 * y * 1.38) / w}%;`,
-      symbol: "",
+      short: imploding ? (faceUp ? "已翻面：抽到立即出局" : "未翻面：抽到翻面放回") : shorts[c.type] || "同名组合偷牌",
+      stateLabel: imploding ? (faceUp ? "已翻面" : "未翻面") : "",
+      source: expansionIndex >= 0 ? "expansion.jpg" : c.type.startsWith("cat") ? "cats.jpg" : "core.jpg",
+      expansion: expansionTypes.includes(c.type),
+      art: expansionIndex >= 0
+        ? `width:300%;left:${-(expansionIndex % 3) * 100}%;top:50%;transform:translateY(-${expansionIndex < 3 ? 25 : 75}%);`
+        : `width:${153600 / w}%;left:${(-100 * x) / w}%;top:${(-100 * y * 1.38) / w}%;`,
+      symbol: symbols[c.type] || "",
     };
   }
   function me(r) {
@@ -98,19 +135,25 @@
       return {
         ...result,
         valid:
-          ["attack", "skip", "favor", "shuffle", "future"].includes(t) &&
+          ["attack", "skip", "favor", "shuffle", "future", "targetAttack", "reverse", "bottom", "alterFuture"].includes(t) &&
           (t !== "favor" ||
             g.players.some((p) => p.alive && p.id !== me(r) && p.count > 0)),
-        needsTarget: t === "favor",
-        hint: t.startsWith("cat")
+        needsTarget: t === "favor" || t === "targetAttack",
+        targetAttack: t === "targetAttack",
+        hint: t === "feral" ? "野猫需要搭配普通猫或其他野猫组成两张、三张组合" : t.startsWith("cat")
           ? "普通猫需要两张或三张同名组合"
           : t === "nope"
             ? "否定只能在响应窗口单张使用"
             : result.hint,
       };
     }
-    if (cards.length > 3 || cards.some((c) => c.type !== cards[0].type))
-      return { ...result, hint: "组合需要两张或三张同名牌" };
+    const hasFeral = cards.some((c) => c.type === "feral");
+    const ordinary = cards.filter((c) => c.type !== "feral");
+    const legalCombo = hasFeral
+      ? ordinary.every((c) => /^cat[1-5]$/.test(c.type) && c.type === ordinary[0].type)
+      : cards.every((c) => c.type === cards[0].type);
+    if (cards.length > 3 || !legalCombo || cards.some((c) => ["bomb", "imploding"].includes(c.type)))
+      return { ...result, hint: hasFeral ? "野猫只能搭配同一种普通猫，或全用野猫组合" : "组合需要两张或三张同名牌" };
     return {
       ...result,
       valid:
@@ -139,6 +182,10 @@
     }));
     const base = {
       players: ps,
+      rulesLabel: g?.rulesVersion === "ek-original-2025-friends-6p-v1"
+        ? "六人朋友规则（旧局）"
+        : g?.rulesVersion === "ek-imploding-2023-online-v1" || (!g && r.players.length === 6)
+          ? "完整内爆猫扩展" : "基础版",
       noTurnTimer: r.options?.noTurnTimer === true,
       nopeSeconds: r.options?.nopeSeconds ?? 10,
       isHost: r.hostId === id,
@@ -156,6 +203,7 @@
         (_, i) => i + 1,
       ),
       selection: selection(r, ids || []),
+      namedOptions: namedOptions(r),
     };
     if (!g) return base;
     const myIndex = ps.findIndex((p) => p.isMe);
@@ -198,8 +246,9 @@
       nope: "否定响应时间",
       favor: "等待交出一张牌",
       future: turn ? "只有你能看到预知" : "对方正在预知",
+      alterFuture: turn ? "秘密调整未来" : "对方正在调整未来",
       defuse: turn ? "拆弹，安全第一" : "对方正在拆弹",
-      insert: turn ? "秘密放回炸弹" : "对方正在放回炸弹",
+      insert: g.bomb?.type === "imploding" ? (turn ? "秘密插回内爆猫" : "对方正在插回内爆猫") : (turn ? "秘密放回炸弹" : "对方正在放回炸弹"),
       finished: "本局结束",
     };
     return {
@@ -223,11 +272,18 @@
         selected: (ids || []).includes(c.id),
       })),
       selectedCards: g.hand.filter((c) => (ids || []).includes(c.id)).map(card),
-      future: (g.future || []).map(card),
+      future: turn ? (g.future || []).map(card) : [],
+      direction: g.direction === -1 ? -1 : 1,
+      directionText: g.direction === -1 ? "↺ 逆时针" : "↻ 顺时针",
+      deckTop: g.deckTop?.type === "imploding" && g.deckTop.faceUp === true ? card(g.deckTop) : null,
+      deckBottom: g.deckBottom?.type === "imploding" && g.deckBottom.faceUp === true ? card(g.deckBottom) : null,
+      insertTitle: g.bomb?.type === "imploding" ? "首次抽到内爆猫 · 秘密插回" : "拆弹成功 · 秘密放回炸弹",
+      insertHint: g.bomb?.type === "imploding" ? "无需拆弹，翻面插回。再次抽到直接出局，不能拆弹。位置只有你知道；放在牌顶或牌底时会公开危险提示。" : "位置只有你知道，其他牌的顺序不会改变。",
+      targetLabel: base.selection.targetAttack ? "选择任一存活玩家（可选自己）" : "选择一位对手",
       discard: g.discard?.length ? card(g.discard[g.discard.length - 1]) : null,
       targets: ps.filter(
         (p) =>
-          p.alive && p.id !== id && (base.selection.needsNamed || p.count > 0),
+          p.alive && (base.selection.targetAttack || (p.id !== id && (base.selection.needsNamed || p.count > 0))),
       ),
       positions: Array.from({ length: g.deckCount + 1 }, (_, i) => ({
         value: i + 1,
@@ -245,6 +301,23 @@
           ? card(g.hand.find((c) => c.id === ids[0]) || { type: "cat1" })
           : null,
     };
+  }
+  function futureOrder(r, previous) {
+    const g = r?.game;
+    if (r?.status !== "playing" || g?.phase !== "alterFuture" || g.current !== me(r) || !g.players.some((p) => p.id === me(r) && p.alive) || !Array.isArray(g.future)) return null;
+    const ids = g.future.map((c) => c.id);
+    const key = JSON.stringify([r.code, g.id, g.current, ids]);
+    const retained = previous?.key === key && previous.order.length === ids.length && new Set(previous.order).size === ids.length && previous.order.every((id) => ids.includes(id));
+    const order = retained ? [...previous.order] : ids;
+    return { key, order, cards: order.map((id, index) => ({ ...card(g.future.find((c) => c.id === id)), canUp: index > 0, canDown: index < order.length - 1 })), canConfirm: true };
+  }
+  function moveFuture(r, previous, id, delta) {
+    const state = futureOrder(r, previous);
+    if (!state || ![-1, 1].includes(delta)) return state;
+    const index = state.order.indexOf(id), next = index + delta;
+    if (index < 0 || next < 0 || next >= state.order.length) return state;
+    [state.order[index], state.order[next]] = [state.order[next], state.order[index]];
+    return futureOrder(r, state);
   }
   function contextChanged(a, b) {
     return (
@@ -295,14 +368,16 @@
           title: "抽到炸弹猫",
           card: card({ type: "bomb" }),
         };
+      if (b.phase === "insert" && b.bomb?.type === "imploding")
+        return { kind: "bomb", title: "首次抽到内爆猫 · 翻面插回", card: card(b.bomb) };
       if (b.phase === "insert")
         return {
           kind: "defuse",
           title: "拆弹成功 · 秘密放回",
           card: card({ type: "defuse" }),
         };
-      if (b.phase === "future" && b.future)
-        return { kind: "future", title: "只有你能看见预知" };
+      if (["future", "alterFuture"].includes(b.phase) && b.future && b.current === me(next))
+        return { kind: "future", title: b.phase === "alterFuture" ? "秘密调整未来 · 确认后生效" : "只有你能看见预知" };
     }
     if (
       b.pending &&
@@ -345,18 +420,20 @@
         const actor = b.players.find((p) => p.id === e.actor)?.name || "玩家";
         const c = e.cards[0];
         return {
-          kind: e.kind,
+          kind: e.kind === "implode" ? "bomb" : e.kind,
           count: e.cards.length,
-          card: card(c),
+          card: card(e.kind === "implode" ? { ...c, faceUp: true } : c),
           title:
-            e.kind === "nope"
+            e.kind === "implode"
+              ? `${actor}${c.faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"}`
+              : e.kind === "nope"
               ? `${actor}${e.nopeCount % 2 ? "否定 · 动作取消" : "反否定 · 动作恢复"}`
               : `${actor}打出 · ${names[c.type]}${e.cards.length > 1 ? " ×" + e.cards.length : ""}`,
         };
       });
     const fallback = motion(previous, next);
     if (!effects.length) return fallback ? [fallback] : [];
-    if (fallback && !["play", "nope"].includes(fallback.kind))
+    if (fallback && !["play", "nope"].includes(fallback.kind) && !effects.some((effect) => effect.kind === fallback.kind && effect.card?.type === fallback.card?.type))
       effects.push(fallback);
     return effects;
   }
@@ -402,6 +479,9 @@
   return {
     names,
     card,
+    namedOptions,
+    futureOrder,
+    moveFuture,
     avatars,
     selection,
     derive,

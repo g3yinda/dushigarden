@@ -49,13 +49,13 @@ test("公开出牌事件保留合并快照中的组合与否定顺序，不暴�
 for (const n of [2, 3, 4, 5, 6])
   test(`${n} 人开局和守恒`, () => {
     const g = game(n);
-    assert.equal(g.deck.length, { 2: 35, 3: 29, 4: 23, 5: 16, 6: 9 }[n]);
+    assert.equal(g.deck.length, { 2: 35, 3: 29, 4: 23, 5: 16, 6: 28 }[n]);
     for (const p of g.players) {
       assert.equal(p.hand.length, 8);
       assert(p.hand.some((c) => c.type === "defuse"));
       assert(!p.hand.some((c) => c.type === "bomb"));
     }
-    assert.equal(g.deck.filter((c) => c.type === "bomb").length, n - 1);
+    assert.equal(g.deck.filter((c) => c.type === "bomb").length, n === 6 ? 4 : n - 1);
     E.assertInvariant(g);
   });
 test("攻击转移剩余负债并加二，跳过只减一", () => {

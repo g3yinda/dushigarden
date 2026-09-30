@@ -23,6 +23,7 @@ const S = {
   target: "",
   named: "defuse",
   position: 1,
+  futureState: null,
   busy: false,
   localMode: false,
   botCount: 1,
@@ -58,7 +59,7 @@ function avatar(p, cls = "") {
 }
 function card(c, select = false) {
   c = U.card(c);
-  return `<${select ? "button" : "div"} class="card ${S.selected.includes(c.id) ? "selected" : ""}" ${select ? `data-action="card" data-id="${esc(c.id)}" aria-pressed="${S.selected.includes(c.id)}" aria-label="${esc(c.name)}，${esc(c.description)}"` : ""}><div class="card-art"><img alt="" src="/${c.source}" style="${c.art}"></div>${select ? `<span class="card-spine">${esc(c.name)}</span><span class="card-check" aria-hidden="true">✓</span>` : ""}<strong>${esc(c.name)}</strong><small>${esc(c.short)}</small></${select ? "button" : "div"}>`;
+  return `<${select ? "button" : "div"} class="card ${S.selected.includes(c.id) ? "selected" : ""}" ${select ? `data-action="card" data-id="${esc(c.id)}" aria-pressed="${S.selected.includes(c.id)}" aria-label="${esc(c.name)}，${esc(c.description)}"` : ""}><div class="card-art"><img alt="" src="/${c.source}" style="${c.art}">${c.symbol ? `<span class="card-symbol" aria-hidden="true">${esc(c.symbol)}</span>` : ""}${c.stateLabel ? `<span class="card-state ${c.faceUp ? "face-up" : ""}">${esc(c.stateLabel)}</span>` : ""}</div>${select ? `<span class="card-spine">${esc(c.name)}</span><span class="card-check" aria-hidden="true">✓</span>` : ""}<strong>${esc(c.name)}</strong><small>${esc(c.short)}</small></${select ? "button" : "div"}>`;
 }
 function btn(text, action, kind = "primary", disabled = false, extra = "") {
   return `<button class="${kind}" data-action="${action}" ${disabled || S.busy ? "disabled" : ""} ${extra}>${text}</button>`;
@@ -95,7 +96,7 @@ function accept(r) {
     Object.assign(S, {
       room: null, selected: [], modal: null, target: "",
       resume: false, connection: "", handExpanded: false,
-      nopeInfo: null,
+      nopeInfo: null, futureState: null,
     });
     render();
     toast("房主已关闭房间，请重新开局");
@@ -104,6 +105,8 @@ function accept(r) {
   const old = S.room;
   if (old?.code === r.code && old.revision > r.revision) return;
   S.room = r;
+  S.futureState = U.futureOrder(r, S.futureState);
+  if (!U.namedOptions(r).some(c => c.value === S.named)) S.named = "defuse";
   if (old?.code !== r.code || old?.game?.id !== r.game?.id)
     S.handExpanded = false;
   if (
@@ -187,6 +190,7 @@ async function cmd(type, payload = {}) {
       S.resume = !!r;
       S.room = null;
       S.nopeInfo = null;
+      S.futureState = null;
       motionPlayer.clear();
       S.selected = [];
       S.modal = null;
@@ -225,7 +229,7 @@ async function poll() {
         Object.assign(S, {
           room: null, modal: null, selected: [], target: "",
           resume: false, handExpanded: false, connection: "",
-          nopeInfo: null,
+          nopeInfo: null, futureState: null,
         });
         if (e.status === 401) {
           S.token = null;
@@ -257,16 +261,16 @@ function tone() {
   } catch {}
 }
 function lobby() {
-  return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""></div><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–6 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
+  return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="2–6 人炸弹猫，可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""><span class="hero-count">2–6 人</span></div><p class="hero-rules-note">2–5 人基础版 · 6 人完整内爆猫扩展</p><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–6 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
 }
 function waiting(r, v) {
-  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${v.noTurnTimer ? "∞ 出牌不限时" : "出牌 30 秒"} · 否定 ${v.nopeSeconds} 秒</p><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/6 人 · 每人 8 张起手牌</p>`;
+  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${esc(v.rulesLabel)} · ${v.noTurnTimer ? "∞ 出牌不限时" : "出牌 30 秒"} · 否定 ${v.nopeSeconds} 秒</p><div class="seats">${v.players.map((p) => `<div class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/6 人 · 每人 8 张起手牌</p>`;
 }
 function game(r, v) {
   const g = r.game;
   const finished = g.phase === "finished";
-  const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · 朋友局</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
-  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
+  const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · ${esc(v.rulesLabel)}</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="table-direction">${esc(v.directionText)}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${v.deckTop || v.deckBottom ? `<div class="deck-hazards" role="status">${v.deckTop ? "✹ 牌顶：翻面内爆猫 · 抽到即出局" : ""}${v.deckTop && v.deckBottom ? "<br>" : ""}${v.deckBottom ? "✹ 牌底：翻面内爆猫 · 抽到即出局" : ""}</div>` : ""}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -285,14 +289,16 @@ function phase(r, v) {
       : `<p class="nope-completed">${esc(info?.statusText)}</p>`;
     return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-banner-copy"><h3>是否选择否定</h3><p>${esc(info?.actorName)} · ${esc(info?.actionName)}</p><strong>${esc(info?.stateText)}</strong></div>${info?.canPass ? nopeClock() : `<div class="nope-check">${info?.done ? "✓" : "…"}</div>`}${choices}<p class="nope-waiting">等待 ${info?.waiting ?? 0} 位玩家完成响应</p>${info?.canPass ? `<div class="nope-progress"><span data-nope-progress style="width:${info.progress}%"></span></div>` : ""}</div>`;
   }
-  if (g.phase === "future" && g.future)
+  if (g.phase === "alterFuture" && S.futureState && v.turn)
+    return `<div class="phase reorder-phase"><h3>秘密调整未来</h3><p>从上到下是牌顶顺序，第一张将最先抽到。上下移动后，点确认顺序；只有你能看到。</p><div class="future-order">${S.futureState.cards.map((c, i) => `<div class="future-order-row"><span class="future-rank">${i + 1}</span>${card(c)}<div class="future-moves">${btn("↑ 上移", "future-up", "secondary future-move", !c.canUp, `data-id="${esc(c.id)}" aria-label="上移${esc(c.name)}"`)}${btn("↓ 下移", "future-down", "secondary future-move", !c.canDown, `data-id="${esc(c.id)}" aria-label="下移${esc(c.name)}"`)}</div></div>`).join("")}</div>${btn("确认顺序，继续回合", "orderFuture", "primary", !S.futureState.canConfirm)}</div>`;
+  if (g.phase === "future" && g.future && v.turn)
     return `<div class="phase"><h3>悄悄看，只有你知道</h3><p>从左到右，第一张是下一次会抽到的牌。</p><div class="future">${g.future.map((c, i) => `<div><p class="small muted center">第 ${i + 1} 张</p>${card(c)}</div>`).join("")}</div>${btn("看好了，继续", "closeFuture")}</div>`;
   if (g.phase === "favor" && g.pending?.target === v.myId)
     return '<div class="phase"><h3>送出一张牌</h3>请在手牌中只选择一张，再点击交出。</div>';
   if (g.phase === "defuse" && v.turn)
     return `<div class="phase"><h3>抽到炸弹猫了！</h3>用拆弹稳稳保命，再秘密放回炸弹。${btn("使用拆弹", "defuse")}</div>`;
   if (g.phase === "insert" && v.turn)
-    return `<div class="phase"><h3>秘密放回炸弹</h3><p>位置只有你知道，其他牌的顺序不会改变。</p><label for="position">选择插入位置</label><select id="position">${v.positions.map((p) => `<option value="${p.value}" ${S.position === p.value ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>${btn("确认放回", "insert")}</div>`;
+    return `<div class="phase"><h3>${esc(v.insertTitle)}</h3><p>${esc(v.insertHint)}</p><label for="position">选择插入位置</label><select id="position">${v.positions.map((p) => `<option value="${p.value}" ${S.position === p.value ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>${btn("确认放回", "insert")}</div>`;
   return "";
 }
 function nopeClock() {
@@ -306,7 +312,7 @@ function modal() {
   switch (S.modal) {
     case "create":
       title = "一起开一局";
-      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p>${btn("创建好友房", "create-submit")}`;
+      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、调整未来、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p>${btn("创建好友房", "create-submit")}`;
       break;
     case "bots":
       title = "添加验证 Bot";
@@ -334,18 +340,15 @@ function modal() {
       break;
     case "rules":
       title = "活到最后，就赢了";
-      body = `<ol><li>2–6 位朋友，每人 8 张牌，至少有 1 张拆弹。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>否定时长由建房时选择（15 / 10 / 5 秒，默认 10 秒），否定也能被否定，每次重新计时。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
+      body = `<ol><li>2–6 位朋友，每人 8 张牌，至少有 1 张拆弹。2–5 人用基础版，6 人加入完整内爆猫扩展。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>否定时长由建房时选择（15 / 10 / 5 秒，默认 10 秒），否定也能被否定，每次重新计时。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>六人扩展：内爆猫首次抽到翻面秘密插回，再次抽到直接出局；不能拆弹。定向攻击可指定自己，反转改变方向并免抽一个回合，抽牌底从底部抽牌，调整未来可秘密重排前三张。野猫只能替代普通猫组成组合。</p><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
       break;
     case "play":
-      title = v.selection.needsTarget ? "选择一位对手" : "确认出牌";
-      body = `<div class="play-preview">${v.selectedCards.map((c) => card(c)).join("")}</div><p class="muted">${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>选择一位对手</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + `<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}</strong><span>${p.count} 张牌</span>`, "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}" aria-pressed="${S.target === p.id}"`)).join("")}</div>` : ""}${
+      title = v.selection.needsTarget ? v.targetLabel : "确认出牌";
+      body = `<div class="play-preview">${v.selectedCards.map((c) => card(c)).join("")}</div><p class="muted">${esc(v.selection.hint)}</p>${v.selection.needsTarget ? `<label>${esc(v.targetLabel)}</label><div class="target-grid">${v.targets.map((p) => btn(avatar(p) + `<strong>${esc(p.name)}${p.isMe ? " · 你" : ""}${p.isBot ? " · Bot" : ""}</strong><span>${p.count} 张牌</span>`, "target", "target-option " + (S.target === p.id ? "chosen" : ""), false, `data-id="${esc(p.id)}" aria-pressed="${S.target === p.id}"`)).join("")}</div>` : ""}${
         v.selection.needsNamed
-          ? `<label for="named">声明想要的牌名</label><select id="named">${Object.entries(
-              U.names,
-            )
-              .filter(([k]) => k !== "bomb")
+          ? `<label for="named">声明想要的牌名</label><select id="named">${v.namedOptions
               .map(
-                ([k, n]) =>
+                ({value: k, label: n}) =>
                   `<option value="${k}" ${k === S.named ? "selected" : ""}>${n}</option>`,
               )
               .join("")}</select>`
@@ -551,17 +554,21 @@ document.addEventListener("click", async (e) => {
       return;
     }
     if (a === "prepare") {
+      if (!U.selection(S.room, S.selected).valid) return;
       S.target = "";
       S.modal = "play";
       render();
       return;
     }
     if (a === "target") {
+      if (!U.derive(S.room, S.selected).targets.some(p => p.id === b.dataset.id)) return;
       S.target = b.dataset.id;
       render();
       return;
     }
     if (a === "play") {
+      const v = U.derive(S.room, S.selected);
+      if (!v.selection.valid || (v.selection.needsTarget && !v.targets.some(p => p.id === S.target)) || (v.selection.needsNamed && !v.namedOptions.some(c => c.value === S.named))) return;
       await cmd("play", {
         cards: S.selected,
         target: S.target || undefined,
@@ -574,6 +581,16 @@ document.addEventListener("click", async (e) => {
     if (a === "kick") {
       if (confirm("将这位朋友移出房间？"))
         await cmd("kick", { target: b.dataset.id });
+      return;
+    }
+    if (a === "future-up" || a === "future-down") {
+      S.futureState = U.moveFuture(S.room, S.futureState, b.dataset.id, a === "future-up" ? -1 : 1);
+      render();
+      return;
+    }
+    if (a === "orderFuture") {
+      S.futureState = U.futureOrder(S.room, S.futureState);
+      if (S.futureState?.canConfirm) return await cmd("orderFuture", { order: [...S.futureState.order] });
       return;
     }
     if (a === "give") return await cmd("give", { cardId: S.selected[0] });

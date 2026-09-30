@@ -107,4 +107,21 @@ const CARDS = {
     count: 4,
   },
 };
-module.exports = { CARDS, TYPES: Object.keys(CARDS) };
+const BASE_TYPES = Object.keys(CARDS);
+Object.assign(CARDS, {
+  imploding: { name: "内爆猫", short: "翻面再抽，无法拆弹", description: "首次抽到翻面后秘密放回，不消耗拆弹。再次抽到翻面的内爆猫立即出局，不能拆弹或否定。", color: "#E5DFF3", symbol: "◎", count: 1, expansion: true },
+  targetAttack: { name: "定向攻击 ×2", short: "指定玩家行动 2 回合", description: "不抽牌，指定任意存活玩家（包括自己）行动2回合。受攻击时转移剩余回合，再加2。", color: "#FFE4DC", symbol: "⊕", count: 3, expansion: true },
+  reverse: { name: "反转", short: "反向，免抽 1 回合", description: "反转出牌方向，不抽牌结束1回合。受攻击时只减少1回合；只剩2人时相当于跳过。", color: "#E0F0EF", symbol: "↶", count: 4, expansion: true },
+  bottom: { name: "抽牌底", short: "从牌堆底抽 1 张", description: "通过否定窗口后从牌底抽1张，结束1回合。抽到炸弹或内爆猫照常处理。", color: "#E3ECFC", symbol: "↓", count: 4, expansion: true },
+  alterFuture: { name: "调整未来 ×3", short: "偷看并重排牌顶 3 张", description: "仅自己查看牌顶最多3张，可重新排列后确认放回。翻面内爆猫保持翻面，看完仍需行动。", color: "#EFE4F9", symbol: "⇄", count: 4, expansion: true },
+  feral: { name: "野猫", short: "普通猫组合万能牌", description: "单张无效果。仅可替代普通猫组成对子或三张组合，也可全用野猫；不能替代功能牌。", color: "#FFF0DD", symbol: "✦", count: 4, expansion: true },
+});
+const EXPANSION_TYPES = Object.keys(CARDS).filter(type => CARDS[type].expansion);
+const isHazard = type => type === "bomb" || type === "imploding";
+function validCombo(cards) {
+  if (![2, 3].includes(cards.length) || cards.some(c => isHazard(c.type))) return false;
+  if (!cards.some(c => c.type === "feral")) return cards.every(c => c.type === cards[0].type);
+  const ordinary = cards.filter(c => c.type !== "feral");
+  return ordinary.every(c => /^cat[1-5]$/.test(c.type) && c.type === ordinary[0].type);
+}
+module.exports = { CARDS, TYPES: Object.keys(CARDS), BASE_TYPES, EXPANSION_TYPES, isHazard, validCombo };

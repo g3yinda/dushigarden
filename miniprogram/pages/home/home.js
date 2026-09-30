@@ -13,9 +13,8 @@ Page({
     target: "",
     named: "defuse",
     namedIndex: 0,
-    namedOptions: Object.entries(U.names)
-      .filter(([k]) => k !== "bomb")
-      .map(([value, label]) => ({ value, label })),
+    namedOptions: U.namedOptions(null),
+    futureState: null,
     position: 1,
     positionIndex: 0,
     busy: false,
@@ -169,7 +168,7 @@ Page({
       this.setData({
         room: null, v: {}, selected: [], modal: "", target: "",
         connection: "", canResume: false, handExpanded: false, handScroll: 0,
-        nopeInfo: null,
+        nopeInfo: null, futureState: null,
       });
       this.notice("房主已关闭房间，请重新开局");
       return;
@@ -195,9 +194,14 @@ Page({
     const changed = U.contextChanged(old, r);
     const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
+    const named = v.namedOptions.some(c => c.value === this.data.named) ? this.data.named : "defuse";
     this.setData({
       room: r,
       selected,
+      futureState: U.futureOrder(r, this.data.futureState),
+      namedOptions: v.namedOptions,
+      named,
+      namedIndex: v.namedOptions.findIndex(c => c.value === named),
       handScroll: old?.game?.id === r.game?.id ? this.handScroll || 0 : 0,
       handExpanded:
         old?.code === r.code && old?.game?.id === r.game?.id
@@ -274,7 +278,7 @@ Page({
           this.setData({
             room: null, modal: "", v: {}, selected: [], target: "",
             canResume: false, handExpanded: false, handScroll: 0, connection: "",
-            nopeInfo: null,
+            nopeInfo: null, futureState: null,
           });
           this.notice(e.message);
           return;
@@ -314,7 +318,7 @@ Page({
           selected: [],
           modal: "",
           canResume: !!r,
-          nopeInfo: null,
+          nopeInfo: null, futureState: null,
         });
         return;
       }
@@ -383,7 +387,7 @@ Page({
   },
   chooseNamed(e) {
     const idx = Number(e.detail.value);
-    this.setData({ namedIndex: idx, named: this.data.namedOptions[idx].value });
+    if (this.data.namedOptions[idx]) this.setData({ namedIndex: idx, named: this.data.namedOptions[idx].value });
   },
   setting(e) {
     const settings = {
@@ -505,21 +509,36 @@ Page({
         return;
       }
       if (a === "prepare") {
+        if (!U.selection(this.data.room, this.data.selected).valid) return;
         this.setData({ target: "", modal: "play" });
         return;
       }
       if (a === "target") {
+        if (!U.derive(this.data.room, this.data.selected).targets.some(p => p.id === id)) return;
         this.setData({ target: id });
         return;
       }
-      if (a === "play")
+      if (a === "play") {
+        const v = U.derive(this.data.room, this.data.selected);
+        if (!v.selection.valid || (v.selection.needsTarget && !v.targets.some(p => p.id === this.data.target)) || (v.selection.needsNamed && !v.namedOptions.some(c => c.value === this.data.named))) return;
         return await this.command("play", {
           cards: this.data.selected,
           target: this.data.target || undefined,
           named: this.data.v.selection.needsNamed ? this.data.named : undefined,
         });
+      }
       if (a === "ready")
         return await this.command("ready", { ready: !this.data.v.ready });
+      if (a === "future-up" || a === "future-down") {
+        this.setData({ futureState: U.moveFuture(this.data.room, this.data.futureState, id, a === "future-up" ? -1 : 1) });
+        return;
+      }
+      if (a === "orderFuture") {
+        const state = U.futureOrder(this.data.room, this.data.futureState);
+        this.setData({ futureState: state });
+        if (state?.canConfirm) return await this.command("orderFuture", { order: [...state.order] });
+        return;
+      }
       if (a === "give")
         return await this.command("give", { cardId: this.data.selected[0] });
       if (a === "insert")
