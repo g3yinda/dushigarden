@@ -171,8 +171,8 @@ test("行动预算经过非结束回合牌不会重置", () => {
     { type: "play", cards: ["c0"] },
     { ...opts, now: 11000 },
   );
-  g = E.tick(g, { ...opts, now: 16000 });
-  assert.equal(g.deadline, 36000);
+  g = E.tick(g, { ...opts, now: 11000 + E.RULES.nope });
+  assert.equal(g.deadline, 31000 + E.RULES.nope);
   assert.equal(g.phase, "action");
 });
 test("超时自动抽牌、拆弹和插回且只执行一次", () => {
@@ -211,12 +211,12 @@ for (const noTurnTimer of [false, true])
     g = E.command(g, "p0", { type: "nope", cardId: "c1" }, { now: 3000 });
     deadline(g, "nope", 3000);
     g = settle(g);
-    deadline(g, "future", 8000);
+    deadline(g, "future", 3000 + E.RULES.nope);
     g = act(g, "p0", "closeFuture");
     deadline(g, "action");
     g = arrange(game(3, { noTurnTimer }), [["favor"], ["skip"], []]);
     g = settle(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
-    deadline(g, "favor", 6000);
+    deadline(g, "favor", 1000 + E.RULES.nope);
     g = act(g, "p1", "give", { cardId: "c1" });
     deadline(g, "action");
     g = arrange(
@@ -235,8 +235,8 @@ test("null deadline 永不自动推进且玩家仍可在任意时间操作", () 
   let g = arrange(game(3, { noTurnTimer: true }), [["future"], [], []]);
   assert.equal(E.tick(g, { now: 1000000 }), g);
   g = E.command(g, "p0", { type: "play", cards: ["c0"] }, { now: 1000000 });
-  assert.equal(g.deadline, 1005000);
-  g = E.tick(g, { now: 1005000 });
+  assert.equal(g.deadline, 1000000 + E.RULES.nope);
+  g = E.tick(g, { now: 1000000 + E.RULES.nope });
   assert.equal(g.deadline, null);
   assert.equal(E.tick(g, { now: 2000000 }), g);
   g = E.command(g, "p0", { type: "closeFuture" }, { now: 2000000 });

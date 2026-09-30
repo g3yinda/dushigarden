@@ -24,6 +24,8 @@ Page({
     botCountIndex: 0,
     respondNope: false,
     noTurnTimer: false,
+    nopeSeconds: 10,
+    nopeTimes: [15, 10, 5],
     handScroll: 0,
     handExpanded: false,
     motionItems: [],
@@ -158,6 +160,18 @@ Page({
   },
   accept(r) {
     if (!r) return;
+    if (r.status === "closed") {
+      this.epoch = (this.epoch || 0) + 1;
+      this.pollRequest?.abort();
+      this.motionPlayer?.clear();
+      this.handScroll = 0;
+      this.setData({
+        room: null, v: {}, selected: [], modal: "", target: "",
+        connection: "", canResume: false, handExpanded: false, handScroll: 0,
+      });
+      this.notice("房主已关闭房间，请重新开局");
+      return;
+    }
     this.motionPlayer ||= U.createMotionPlayer({
       show: (motion) => {
         // Key each effect so consecutive plays mount a fresh CSS animation node.
@@ -193,7 +207,7 @@ Page({
         ? { botCount: 1, botCountIndex: 0 }
         : {}),
       connection: "",
-      ...(changed
+      ...(changed || (this.data.modal === "close-room" && !v.isHost)
         ? { modal: "", target: "", position: 1, positionIndex: 0 }
         : {}),
     });
@@ -245,14 +259,18 @@ Page({
         else if (this.data.connection) this.setData({ connection: "" });
       } catch (e) {
         if (epoch !== this.epoch) return;
-        if ([401, 403, 404].includes(e.status)) {
+        if ([401, 403, 404, 410].includes(e.status)) {
           this.epoch++;
           this.motionPlayer?.clear();
           if (e.status === 401) {
             this.token = null;
             wx.removeStorageSync("boom.token");
           }
-          this.setData({ room: null, modal: "", v: {} });
+          this.handScroll = 0;
+          this.setData({
+            room: null, modal: "", v: {}, selected: [], target: "",
+            canResume: false, handExpanded: false, handScroll: 0, connection: "",
+          });
           this.notice(e.message);
           return;
         }
@@ -267,7 +285,7 @@ Page({
   async command(type, payload = {}) {
     if (this.data.busy || !this.data.room) return;
     this.setData({ busy: true });
-    if (type === "leave") {
+    if (["leave", "closeRoom"].includes(type)) {
       this.epoch = (this.epoch || 0) + 1;
       if (this.pollRequest) this.pollRequest.abort();
     }
@@ -303,7 +321,7 @@ Page({
       } else this.notice(e.message);
     } finally {
       this.setData({ busy: false });
-      if (type === "leave" && this.data.room && this.visible) this.poll();
+      if (["leave", "closeRoom"].includes(type) && this.data.room && this.visible) this.poll();
     }
   },
   input(e) {
@@ -374,13 +392,26 @@ Page({
       id = e.currentTarget.dataset.id;
     if (this.data.busy) return;
     try {
+      if (a === "nope-time") {
+        const seconds = Number(e.currentTarget.dataset.seconds);
+        if (this.data.nopeTimes.includes(seconds)) this.setData({ nopeSeconds: seconds });
+        return;
+      }
+      if (a === "close-room") {
+        if (U.derive(this.data.room, this.data.selected).isHost) this.setData({ modal: "close-room" });
+        return;
+      }
+      if (a === "close-room-submit") {
+        if (this.data.modal === "close-room" && U.derive(this.data.room, this.data.selected).isHost) return await this.command("closeRoom");
+        return;
+      }
       if (a === "hand-toggle") {
         this.handScroll = 0;
         this.setData({ handExpanded: !this.data.handExpanded, handScroll: 0 });
         return;
       }
       if (a === "create") {
-        this.setData({ modal: "create", noTurnTimer: false });
+        this.setData({ modal: "create", noTurnTimer: false, nopeSeconds: 10 });
         return;
       }
       if (a === "bots") {
@@ -419,7 +450,7 @@ Page({
         const r = await this.request(
           a === "create-submit" ? "/rooms" : "/rooms/join",
           a === "create-submit"
-            ? { noTurnTimer: this.data.noTurnTimer }
+            ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds }
             : { code: this.data.code },
         );
         this.setData({ modal: "" });

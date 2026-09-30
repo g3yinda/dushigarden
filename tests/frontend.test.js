@@ -237,6 +237,43 @@ test("native 创建房间先选择不限时模式，最终提交房间选项", a
   assert.equal(calls[0].url, "/rooms");
   assert.equal(calls[0].body.noTurnTimer, true);
 });
+test("native 建房默认10秒，可选择15/5秒并提交，重开建房面板复位", async () => {
+  const page = nativeHarness();
+  page.data.room = null;
+  page.session = async () => {};
+  page.poll = () => {};
+  const calls = [];
+  page.request = async (_, body) => { calls.push(body); return waitingRoom(); };
+  await page.action({ currentTarget: { dataset: { action: "create" } } });
+  assert.equal(page.data.nopeSeconds, 10);
+  for (const seconds of [15, 5]) {
+    await page.action({ currentTarget: { dataset: { action: "nope-time", seconds } } });
+    await page.action({ currentTarget: { dataset: { action: "create-submit" } } });
+    assert.equal(calls.at(-1).nopeSeconds, seconds);
+  }
+  await page.action({ currentTarget: { dataset: { action: "create" } } });
+  assert.equal(page.data.nopeSeconds, 10);
+});
+test("native 关闭必须由房主进入确认，收到关闭后停止同步并清理回大厅", async () => {
+  const page = nativeHarness();
+  page.accept({ ...structuredClone(room), code: "123456" });
+  page.data.selected = ["1", "2"];
+  page.data.canResume = true;
+  await page.action({ currentTarget: { dataset: { action: "close-room" } } });
+  assert.equal(page.data.modal, "close-room");
+  const nonHost = { ...structuredClone(room), code: "123456", hostId: "b" };
+  page.accept(nonHost);
+  assert.equal(page.data.modal, "");
+  await page.action({ currentTarget: { dataset: { action: "close-room" } } });
+  assert.equal(page.data.modal, "");
+  const epoch = page.epoch || 0;
+  page.accept({ code: "123456", status: "closed", revision: 99, players: [], game: null });
+  assert.equal(page.data.room, null);
+  assert.equal(page.data.canResume, false);
+  assert.equal(page.data.selected.length, 0);
+  assert((page.epoch || 0) > epoch);
+  assert.match(page.notices.at(-1), /房主.*关闭/);
+});
 test("native 无动效的新状态同步不会提前清除正在展示的牌", () => {
   const page = nativeHarness();
   page.data.room = structuredClone(room);
@@ -286,13 +323,19 @@ test("native 房间失效回大厅时清除旧局动画队列", async () => {
   r.game.hand.push({ id: "new", type: "skip" });
   page.accept(r);
   assert(page.data.motion);
+  page.data.selected = ["new"];
+  page.data.canResume = true;
+  page.data.handExpanded = true;
   page.request = async () => {
-    throw Object.assign(Error("房间不存在"), { status: 404 });
+    throw Object.assign(Error("房间已关闭"), { status: 410 });
   };
   await page.poll();
   assert.equal(page.data.room, null);
   assert.equal(page.data.motion, null);
   assert.equal(page.data.motionItems.length, 0);
+  assert.equal(page.data.selected.length, 0);
+  assert.equal(page.data.canResume, false);
+  assert.equal(page.data.handExpanded, false);
 });
 async function browserHarness(mode) {
   const handlers = {},
@@ -330,8 +373,8 @@ async function browserHarness(mode) {
     requests,
     nodes,
     state: vm.runInContext("S", context),
-    click: (action) =>
-      handlers.click({ target: { closest: () => ({ dataset: { action } }) } }),
+    click: (action, data = {}) =>
+      handlers.click({ target: { closest: () => ({ dataset: { action, ...data } }) } }),
   };
 }
 test("native 手牌默认收起，切换保留多选，同步保持而新局复位", async () => {
@@ -393,6 +436,47 @@ test("browser 创建房间先选不限时再提交，默认计时不变", async 
   const call = h.requests.find((r) => r.url === "/api/rooms");
   assert.equal(JSON.parse(call.options.body).noTurnTimer, true);
 });
+test("browser 建房默认10秒，三档选择提交且普通成员看不到关闭入口", async () => {
+  const h = await browserHarness("local");
+  await h.click("create");
+  assert.equal(h.state.nopeSeconds, 10);
+  for (const seconds of [15, 10, 5]) {
+    await h.click("nope-time", { seconds });
+    assert.equal(h.state.nopeSeconds, seconds);
+    h.state.token = "test";
+    h.context.fetch = async (url, options) => { h.requests.push({url,options}); return {ok:true,json:async()=>waitingRoom()}; };
+    vm.runInContext("poll = () => {}", h.context);
+    await h.click("create-submit");
+    const call = h.requests.filter(r=>r.url === "/api/rooms").at(-1);
+    assert.equal(JSON.parse(call.options.body).nopeSeconds, seconds);
+  }
+  h.state.room = { ...structuredClone(room), hostId: "b" };
+  await h.click("leave");
+  assert(!h.nodes["#app"].innerHTML.includes('data-action="close-room"'));
+  await h.click("close-room");
+  assert.equal(h.state.modal, "leave");
+});
+test("browser 房主关闭需确认，角色变化取消确认；收到关闭返回大厅无恢复入口", async () => {
+  const h = await browserHarness("local");
+  h.state.room = { ...structuredClone(room), code: "123456" };
+  await h.click("leave");
+  assert.match(h.nodes["#app"].innerHTML, /关闭整个房间/);
+  await h.click("close-room");
+  assert.equal(h.state.modal, "close-room");
+  h.context.updatedRoom = {...structuredClone(h.state.room), hostId:"b"};
+  vm.runInContext("accept(updatedRoom)", h.context);
+  assert.equal(h.state.modal, null);
+  h.state.resume = true;
+  h.state.selected = ["1"];
+  const epoch = h.state.poll;
+  h.context.updatedRoom = {code:"123456",revision:99,status:"closed",players:[],game:null};
+  vm.runInContext("accept(updatedRoom)", h.context);
+  assert.equal(h.state.room, null);
+  assert.equal(h.state.resume, false);
+  assert.equal(h.state.selected.length, 0);
+  assert(h.state.poll > epoch);
+  assert.match(h.nodes["#toast"].textContent, /房主.*关闭/);
+});
 test("browser 房间失效回大厅时清除旧局动画队列", async () => {
   const h = await browserHarness("local");
   h.state.room = structuredClone(room);
@@ -401,14 +485,20 @@ test("browser 房间失效回大厅时清除旧局动画队列", async () => {
   h.context.updatedRoom = r;
   vm.runInContext("accept(updatedRoom)", h.context);
   assert(h.state.motion);
+  h.state.selected = ["new"];
+  h.state.resume = true;
+  h.state.handExpanded = true;
   h.context.fetch = async () => ({
     ok: false,
-    status: 404,
-    json: async () => ({ message: "房间不存在" }),
+    status: 410,
+    json: async () => ({ message: "房间已关闭" }),
   });
   await vm.runInContext("poll()", h.context);
   assert.equal(h.state.room, null);
   assert.equal(h.state.motion, null);
+  assert.equal(h.state.selected.length, 0);
+  assert.equal(h.state.resume, false);
+  assert.equal(h.state.handExpanded, false);
 });
 test("native Bot form defaults off and submits one revision-guarded request under busy lock", async () => {
   const page = nativeHarness();

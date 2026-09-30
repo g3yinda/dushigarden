@@ -210,13 +210,41 @@ test("HTTP 建房传递不限时布尔选项，拒绝其他值且过滤时长覆
     a.token,
   );
   assert.equal(made.status, 200);
-  assert.deepEqual(made.data.options, { noTurnTimer: true });
+  assert.deepEqual(made.data.options, { noTurnTimer: true, nopeSeconds: 10 });
   const b = (await req("/api/session", { name: "普通猫" })).data;
   const normal = await req("/api/rooms", {}, b.token);
-  assert.deepEqual(normal.data.options, { noTurnTimer: false });
+  assert.deepEqual(normal.data.options, { noTurnTimer: false, nopeSeconds: 10 });
 });
 
 // Exercise the real HTTP handler with the socket source seen from a phone.
+test("HTTP 三档否定设置校验；房主关闭唤醒成员长轮询并释放房间占用", async (t) => {
+  const service = new RoomService({ now: () => 1000 });
+  const req = await fixture(t, { service, pollMs: 1000 });
+  const a = (await req("/api/session", { name: "房主" })).data;
+  const b = (await req("/api/session", { name: "成员" })).data;
+  for (const nopeSeconds of ["10", null, 0, 20])
+    assert.equal((await req("/api/rooms", { nopeSeconds }, a.token)).status, 400);
+  let r = (await req("/api/rooms", { nopeSeconds: 15 }, a.token)).data;
+  assert.equal(r.options.nopeSeconds, 15);
+  r = (await req("/api/rooms/join", { code: r.code }, b.token)).data;
+  const closing = { type: "closeRoom", revision: r.revision, commandId: "close-room" };
+  assert.equal((await req(`/api/rooms/${r.code}/command`, closing, b.token)).status, 403);
+  const poll = req(`/api/rooms/${r.code}?after=${r.revision}`, null, b.token);
+  for (let i = 0; i < 50 && !service.listenerCount(r.code); i++)
+    await new Promise(resolve => setTimeout(resolve, 10));
+  assert(service.listenerCount(r.code) > 0, "member long poll must be registered before closure");
+  const close = await req(`/api/rooms/${r.code}/command`, closing, a.token);
+  assert.equal(close.status, 200);
+  assert.equal(close.data.status, "closed");
+  const update = await poll;
+  assert.equal(update.status, 200);
+  assert.equal(update.data.status, "closed");
+  assert.equal(update.data.game, null);
+  assert.equal((await req(`/api/rooms/${r.code}/command`, closing, a.token)).data.revision, close.data.revision);
+  assert.equal((await req("/api/rooms/current", null, b.token)).data, null);
+  assert.equal((await req("/api/rooms/join", { code: r.code }, b.token)).status, 410);
+  assert.equal((await req("/api/rooms", { nopeSeconds: 5 }, b.token)).status, 200);
+});
 async function lanRequest(
   server,
   path,

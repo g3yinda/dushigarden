@@ -887,7 +887,36 @@ h3 {
   align-items: center;
 }
 .hand-controls .hand-toggle {
+  min-height: 44px;
+  height: 44px;
+  padding: 0 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hand-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: #eaf3fd;
   color: #0066cc;
+  font-size: 12px;
+  font-weight: 600;
+}
+.hand-chevron {
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  margin-top: -3px;
+}
+.hand-chevron.up {
+  transform: rotate(225deg);
+  margin-top: 3px;
 }
 .hand {
   display: block;
@@ -1209,4 +1238,56 @@ h3 {
   .board-center .pile > .card {
     width: 62px;
   }
+}
+
+.setting-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 18px 0 9px;
+}
+.nope-options {
+  display: flex;
+  padding: 3px;
+  background: #f0f0f4;
+  border-radius: 14px;
+  gap: 3px;
+}
+.nope-option {
+  flex: 1;
+  min-height: 44px;
+  padding: 0;
+  font-size: 15px;
+  border-radius: 11px;
+  color: #626570;
+}
+.nope-option.chosen {
+  background: #fff;
+  color: #0066cc;
+  font-weight: 600;
+  box-shadow: 0 1px 4px #1d1d1f0d;
+}
+.setting-note {
+  font-size: 12px;
+  color: #858893;
+  margin-top: 8px;
+}
+.close-room-option {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid #e8e8ed;
+  font-size: 14px;
+}
+.danger-secondary,
+.danger-primary {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 44px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #b62f32;
+  background: #fff1f1;
+}
+.danger-primary {
+  background: #bc3639;
+  color: #fff;
 }

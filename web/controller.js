@@ -140,6 +140,7 @@
     const base = {
       players: ps,
       noTurnTimer: r.options?.noTurnTimer === true,
+      nopeSeconds: r.options?.nopeSeconds ?? 10,
       isHost: r.hostId === id,
       myId: id,
       ready: !!r.players.find((p) => p.id === id)?.ready,

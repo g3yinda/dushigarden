@@ -232,7 +232,7 @@ test("同一 Bot 回合暂停重连后保留出牌记忆，恢复时重新思考
   now += 1500;
   runner.step();
   assert.equal(s.rooms[r.code].game.pending.type, "shuffle");
-  now += 5001;
+  now += E.RULES.nope + 1;
   s.tick();
   assert.equal(s.rooms[r.code].game.phase, "action");
   // The shuffle effect uses production randomness; keep only subsequent fixture draws deterministic.
@@ -295,7 +295,7 @@ test("进行中的 Bot 预知阶段从快照恢复后自动关闭并继续抽牌
     runner.step();
     now += 1500;
     runner.step();
-    now += 5001;
+    now += E.RULES.nope + 1;
     s.tick();
     assert.equal(s.rooms[r.code].game.phase, "future");
     const restored = new RoomService({ allowBots: true, file, now: () => now });

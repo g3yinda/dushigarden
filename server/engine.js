@@ -3,7 +3,7 @@ const { randomInt, randomUUID } = require("node:crypto");
 const { CARDS, TYPES } = require("../shared/cards");
 const RULES = {
   action: 30000,
-  nope: 5000,
+  nope: 10000,
   favor: 15000,
   future: 10000,
   defuse: 10000,
@@ -41,8 +41,13 @@ function privateLog(g, id, text) {
 }
 function phase(g, name, now) {
   g.phase = name;
+  const duration = name === "nope"
+    ? (g.options?.nopeSeconds ?? 10) * 1000
+    : RULES[name];
   g.deadline =
-    g.options?.noTurnTimer && name !== "nope" ? null : now + RULES[name];
+    g.options?.noTurnTimer && name !== "nope"
+      ? null
+      : now + duration;
 }
 function resume(g, now) {
   g.pending = null;
@@ -81,8 +86,10 @@ function createGame(
     now = Date.now(),
     id = randomUUID(),
     noTurnTimer = false,
+    nopeSeconds = 10,
   } = {},
 ) {
+  if (![15, 10, 5].includes(nopeSeconds)) fail("否定时长请选择15、10或5秒");
   if (
     players.length < 2 ||
     players.length > 5 ||
@@ -111,7 +118,7 @@ function createGame(
     id,
     version: 1,
     rulesVersion: "ek-original-2025-online-v1",
-    options: { noTurnTimer: noTurnTimer === true },
+    options: { noTurnTimer: noTurnTimer === true, nopeSeconds },
     players: ps,
     deck,
     discard: [],

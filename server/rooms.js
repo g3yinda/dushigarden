@@ -37,8 +37,15 @@ class RoomService extends EventEmitter {
       });
       let repaired = false;
       for (const r of Object.values(this.rooms)) {
-        if (!r.options || (r.game && !r.game.options)) repaired = true;
-        r.options = { noTurnTimer: r.options?.noTurnTimer === true };
+        if (
+          !r.options || ![15, 10, 5].includes(r.options.nopeSeconds) ||
+          (r.game && !r.game.options)
+        ) repaired = true;
+        r.options = {
+          noTurnTimer: r.options?.noTurnTimer === true,
+          nopeSeconds: [15, 10, 5].includes(r.options?.nopeSeconds)
+            ? r.options.nopeSeconds : 5,
+        };
         if (r.game) r.game.options = copy(r.options);
         if (r.game && r.status === "playing") {
           try {
@@ -143,8 +150,8 @@ class RoomService extends EventEmitter {
     return this.players[s.playerId];
   }
   find(id) {
-    return Object.values(this.rooms).find((r) =>
-      r.players.some((p) => p.id === id),
+    return Object.values(this.rooms).find(
+      (r) => r.status !== "closed" && r.players.some((p) => p.id === id),
     );
   }
   member(id, code) {
@@ -159,6 +166,7 @@ class RoomService extends EventEmitter {
     return !p.away && this.now() - (this.presence[p.id] ?? p.lastSeen) < 25000;
   }
   touch(id, r) {
+    if (r.status === "closed") return;
     const p = r.players.find((p) => p.id === id);
     const was = this.online(p);
     this.presence[id] = this.now();
@@ -208,12 +216,18 @@ class RoomService extends EventEmitter {
   }
   view(id, code) {
     const r = this.member(id, code);
+    if (r.status === "closed")
+      return {
+        code: r.code, revision: r.revision, status: "closed", closeReason: "host",
+        hostId: r.hostId, options: copy(r.options), me: id, serverNow: this.now(),
+        players: [], game: null,
+      };
     return {
       code: r.code,
       revision: r.revision,
       hostId: r.hostId,
       status: r.status,
-      options: copy(r.options || { noTurnTimer: false }),
+      options: copy(r.options || { noTurnTimer: false, nopeSeconds: 10 }),
       me: id,
       serverNow: this.now(),
       players: r.players.map((p) => ({
@@ -243,6 +257,11 @@ class RoomService extends EventEmitter {
   }
   create(id, options = {}) {
     if (
+      Object.hasOwn(options, "nopeSeconds") &&
+      ![15, 10, 5].includes(options.nopeSeconds)
+    )
+      fail("否定时长请选择15、10或5秒");
+    if (
       Object.hasOwn(options, "noTurnTimer") &&
       typeof options.noTurnTimer !== "boolean"
     )
@@ -257,7 +276,10 @@ class RoomService extends EventEmitter {
       hostId: id,
       revision: 1,
       status: "waiting",
-      options: { noTurnTimer: options.noTurnTimer === true },
+      options: {
+        noTurnTimer: options.noTurnTimer === true,
+        nopeSeconds: options.nopeSeconds ?? 10,
+      },
       players: [this.seat(id)],
       game: null,
       commands: {},
@@ -273,6 +295,7 @@ class RoomService extends EventEmitter {
       fail("请输入 6 位房间号");
     const r = this.rooms[code];
     if (!r) fail("房间不存在或已关闭", "NOT_FOUND", 404);
+    if (r.status === "closed") fail("房间已由房主关闭", "ROOM_CLOSED", 410);
     const current = this.find(id);
     if (current && current.code !== code) fail("你已在另一个房间");
     if (r.players.some((p) => p.id === id)) {
@@ -302,6 +325,7 @@ class RoomService extends EventEmitter {
       if (prior !== signature) fail("命令标识已经用于其他操作");
       return this.view(id, code);
     }
+    if (r.status === "closed") fail("房间已由房主关闭", "ROOM_CLOSED", 410);
     if (a.revision !== r.revision)
       fail("状态已更新，请重新确认操作", "STALE", 409);
     const me = r.players.find((p) => p.id === id);
@@ -309,7 +333,18 @@ class RoomService extends EventEmitter {
     // Clone before validation so rejected operations cannot mutate the authoritative room.
     const n = copy(r);
     const self = n.players.find((p) => p.id === id);
-    if (a.type === "addBots") {
+    if (a.type === "closeRoom") {
+      if (n.hostId !== id || self.isBot)
+        fail("仅房主可以关闭整个房间", "FORBIDDEN", 403);
+      n.status = "closed";
+      n.closedAt = this.now();
+      n.game = null;
+      n.offlineTurn = null;
+      n.offlineSince = null;
+      // Retain only former membership for a short-lived closure notification.
+      n.players = n.players.map((p) => ({ id: p.id }));
+      n.commands = {};
+    } else if (a.type === "addBots") {
       if (!this.allowBots)
         fail("验证 Bot 仅在本地开发模式可用", "FORBIDDEN", 403);
       if (n.hostId !== id || self.isBot || n.status !== "waiting")
@@ -425,6 +460,14 @@ class RoomService extends EventEmitter {
     const now = this.now();
     let dirty = false;
     for (const r of Object.values(this.rooms)) {
+      if (r.status === "closed") {
+        if (now - r.closedAt >= 300000) {
+          delete this.rooms[r.code];
+          this.emit(r.code);
+          dirty = true;
+        }
+        continue;
+      }
       const online = r.players.filter((p) => !p.isBot && this.online(p));
       if (online.length) {
         r.offlineSince = null;
