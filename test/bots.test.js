@@ -79,19 +79,22 @@ test("Bot 私密阶段可以交牌、拆弹、插回与看完预知", () => {
   }
   assert.deepEqual(bots.chooseAction(view("future")), { type: "closeFuture" });
 });
-test("否定开关关闭时不响应，开启时能够否定与反否定", () => {
+test("Bot 不出也确认本层，开启时能够否定与反否定", () => {
   assert.equal(typeof bots.chooseAction, "function");
   const r = view("nope");
   r.game.hand.push({ id: "n", type: "nope" });
   r.game.pending = { actor: "a", type: "attack", nopeCount: 0 };
-  assert.equal(bots.chooseAction(r, { respondNope: false }), null);
+  assert.deepEqual(bots.chooseAction(r, { respondNope: false }), {type:"passNope",nopeCount:0});
   assert.deepEqual(bots.chooseAction(r, { respondNope: true }), {
     type: "nope",
     cardId: "n",
+    nopeCount: 0,
   });
   r.game.pending = { actor: "b", type: "attack", nopeCount: 1 };
   assert.equal(bots.chooseAction(r, { respondNope: true }).type, "nope");
   r.game.pending.nopeCount = 0;
+  assert.deepEqual(bots.chooseAction(r, { respondNope: true }), {type:"passNope",nopeCount:0});
+  r.game.pending.responses = {b:"passed"};
   assert.equal(bots.chooseAction(r, { respondNope: true }), null);
 });
 test("普通猫同名组合可以出牌且目标只选公开有牌对手", () => {

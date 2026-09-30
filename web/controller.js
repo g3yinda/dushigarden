@@ -203,7 +203,8 @@
       phaseTitle: phases[g.phase] || "等待同步",
       canDraw: alive && turn && g.phase === "action",
       canNope:
-        alive && g.phase === "nope" && g.hand.some((c) => c.type === "nope"),
+        alive && g.phase === "nope" &&
+        (!g.pending?.responses?.[me(r)] || g.pending.responses[me(r)] === "waiting") && g.hand.some((c) => c.type === "nope"),
       canGive:
         alive &&
         g.phase === "favor" &&
@@ -256,11 +257,17 @@
     const actionName = p.type === "pair" ? "同名对子"
       : p.type === "triple" ? "三张组合" : names[p.type] || "卡牌效果";
     const canceled = p.nopeCount % 2 === 1;
+    const status = p.responses?.[me(r)] || "waiting";
+    const waiting = g.players.filter(player => player.alive && (!p.responses?.[player.id] || p.responses[player.id] === "waiting")).length;
+    const canPass = !!mine?.alive && status === "waiting" && remaining > 0;
     return {
       key: JSON.stringify([r.code, g.id, p.actor, p.type, p.nopeCount, g.deadline]),
-      canNope: !!mine?.alive && !!nope && remaining > 0,
+      canNope: canPass && !!nope,
+      canPass, status, waiting, nopeCount: p.nopeCount,
+      done: !!mine?.alive && status !== "waiting",
+      statusText: status === "passed" ? "已选择不出 · 本轮已完成" : status === "played" ? "已打出否定 · 本轮已完成" : !mine?.alive ? "正在旁观" : remaining === 0 ? "响应已结束 · 等待结算" : "",
       cardId: nope?.id,
-      remaining,
+      remaining: canPass ? remaining : 0,
       progress: Math.min(100, Math.max(0, (g.deadline - now) / ((r.options?.nopeSeconds ?? 10) * 1000) * 100)),
       actorName: r.players.find((player) => player.id === p.actor)?.name || "一位朋友",
       actionName,

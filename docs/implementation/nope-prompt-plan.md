@@ -1,5 +1,7 @@
 # 否定主动提示与醒目倒计时
 
+> 历史实现记录：其中浮层、仅本地跳过及可改出语义已被 v0.3.2 `nope-response-plan.md` 替代。
+
 用户直接要求实现本功能，沿用已批准的 Apple 浅色，不新增风格审批。brainstorming 确定边界，writing-plans 记录步骤，test-driven-development 验证行为，frontend-design 实现呈现；本次在当前会话执行。
 
 ## 设计

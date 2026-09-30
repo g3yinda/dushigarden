@@ -1317,17 +1317,9 @@ h3 {
 .urgent .nope-clock { color: #b63822; }
 .urgent .nope-progress { background: #f6d8d0; }
 .urgent .nope-progress > span { background: #bf452e; }
-.nope-context { display: flex; align-items: center; gap: 10px; padding: 16px 12px; border: 1px solid #dce9f8; border-radius: 18px; background: #f5f9ff; }
-.nope-context > div:nth-child(2) { flex: 1; min-width: 0; }
-.nope-context strong { font-size: 14px; }
-.nope-context p { font-size: 12px; color: #586d83; margin: 5px 0 0; }
-.nope-context .nope-clock { min-width: 60px; }
-.nope-context .nope-clock strong { font-size: 32px; }
-.nope-symbol { font-size: 23px; flex: 0 0 auto; }
-.nope-result { font-size: 15px; font-weight: 600; padding: 16px 0 4px; }
-.nope-hint { font-size: 12px; color: #647184; line-height: 1.6; text-align: center; margin-top: 14px; }
-.urgent .nope-context { background: #fff7f4; border-color: #efc8bd; }
-@media (max-width: 340px) {
-  .nope-context { padding: 12px 9px; gap: 7px; }
-  .nope-symbol { display: none; }
-}
+.nope-choices { grid-column: 1 / -1; display: flex; gap: 10px; }
+.nope-choices .nope-choice { flex: 1; width: 0; margin: 0; min-height: 44px; font-size: 14px; padding: 10px 12px; }
+.nope-hint, .nope-waiting, .nope-completed { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.5; }
+.nope-hint, .nope-waiting { color: #53687e; }
+.nope-completed { font-size: 14px; font-weight: 600; }
+.nope-check { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #dcecff; color: #0066cc; font-size: 22px; }

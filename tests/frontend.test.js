@@ -766,152 +766,112 @@ test("否定响应提示只看本人牌；同层key不变，反否定文案/新�
   r.game.phase = "defuse";
   assert.equal(ui.nopeResponse(r, r.serverNow), null);
 });
-test("native 否定自动弹出；本次不出不发命令，同层不重复、新层重新提示", async () => {
-  const page = nativeHarness();
-  const r = nopeRoom();
+test("native 固定提示不弹窗；不出提交服务器、停止本人计时且不可改出", async () => {
+  const page = nativeHarness(), r = nopeRoom();
   page.accept(r);
-  assert.equal(page.data.modal, "nope-prompt");
+  assert.equal(page.data.modal, "");
   const key = page.data.nopeInfo.key;
-  let calls = 0;
-  page.command = async () => calls++;
-  await page.action({ currentTarget: { dataset: { action: "nope-pass", window: key } } });
-  assert.equal(page.data.modal, "");
-  assert.equal(calls, 0);
-  page.accept({ ...structuredClone(r), revision: 20 });
-  assert.equal(page.data.modal, "");
+  let calls = [];
+  page.command = async (type, data) => {
+    calls.push({type,data});
+    const next = structuredClone(r);
+    next.revision++;
+    next.game.pending.responses = {a:"passed",b:"waiting"};
+    page.accept(next);
+  };
+  await page.action({currentTarget:{dataset:{action:"nope-pass",window:key}}});
+  assert.equal(calls[0].type,"passNope");
+  assert.equal(calls[0].data.nopeCount,0);
+  assert.equal(page.data.nopeInfo.canNope,false);
+  assert.equal(page.data.nopeInfo.remaining,0);
+  await page.action({currentTarget:{dataset:{action:"nope-response",window:key}}});
+  assert.equal(calls.length,1);
   const next = nopeRoom(1);
+  next.game.pending.responses = {a:"waiting",b:"played"};
   page.accept(next);
-  assert.equal(page.data.modal, "nope-prompt");
-  await page.action({ currentTarget: { dataset: { action: "nope-response", window: key } } });
-  assert.equal(calls, 0);
-  await page.action({ currentTarget: { dataset: { action: "nope-response", window: page.data.nopeInfo.key } } });
-  assert.equal(calls, 1);
+  assert.equal(page.data.nopeInfo.canNope,true);
+  assert.equal(page.data.modal,"");
 });
-test("native 否定到期、失去牌、旁观和结束清理，迟到点击不消耗牌", async () => {
-  const page = nativeHarness();
-  const r = nopeRoom();
-  page.accept(r);
-  const key = page.data.nopeInfo.key;
-  page.offset = 20000;
-  page.tick();
-  assert.equal(page.data.modal, "");
-  let calls = 0;
-  page.command = async () => calls++;
-  await page.action({ currentTarget: { dataset: { action: "nope-response", window: key } } });
-  assert.equal(calls, 0);
-  page.accept(nopeRoom(1, []));
-  assert.equal(page.data.modal, "");
-  const spectator = nopeRoom(2);
-  spectator.game.players[0].alive = false;
-  page.accept(spectator);
-  assert.equal(page.data.modal, "");
-  page.accept(nopeRoom(3));
-  assert.equal(page.data.modal, "nope-prompt");
-  page.accept({ code:r.code, revision:99, status:"closed", players:[], game:null });
-  assert.equal(page.data.modal, "");
-  assert.equal(page.data.nopeInfo, null);
-});
-test("native 否定失败保留可重试提示，跳过后仍能从桌面打出", async () => {
+test("native 失败不锁定；截止、无牌和旁观不能打出，旧层点击被拒绝", async () => {
   const page = nativeHarness();
   page.accept(nopeRoom());
-  page.request = async () => { throw Error("暂时断网"); };
+  page.request = async () => {throw Error("暂时断网");};
   const key = page.data.nopeInfo.key;
-  await page.action({ currentTarget: { dataset: { action: "nope-response", window: key } } });
-  assert.equal(page.data.modal, "nope-prompt");
-  assert.equal(page.data.busy, false);
-  await page.action({ currentTarget: { dataset: { action: "nope-pass", window: key } } });
-  let payload;
-  page.command = async (type, data) => payload = { type, data };
-  await page.action({ currentTarget: { dataset: { action: "nope" } } });
-  assert.equal(payload.type, "nope");
-  assert.equal(payload.data.cardId, "n1");
+  await page.action({currentTarget:{dataset:{action:"nope-pass",window:key}}});
+  assert.equal(page.data.nopeInfo.canPass,true);
+  assert.equal(page.data.busy,false);
+  let calls = 0; page.command = async () => calls++;
+  page.accept(nopeRoom(1,[]));
+  assert.equal(page.data.nopeInfo.canPass,true);
+  await page.action({currentTarget:{dataset:{action:"nope-pass",window:key}}});
+  assert.equal(calls,0);
+  page.offset=20000; page.tick();
+  assert.equal(page.data.nopeInfo.canPass,false);
+  const spectator=nopeRoom(2); spectator.game.players[0].alive=false; page.accept(spectator);
+  assert.equal(page.data.nopeInfo.canPass,false);
+  page.accept({code:"123456",revision:99,status:"closed",players:[],game:null});
+  assert.equal(page.data.nopeInfo,null);
 });
-async function receiveNope(h, r) {
-  h.context.updatedRoom = r;
-  vm.runInContext("accept(updatedRoom)", h.context);
+async function receiveNope(h,r) {
+  h.context.updatedRoom = r; vm.runInContext("accept(updatedRoom)",h.context);
 }
-test("browser 否定自动提示与大号时钟；跳过不发请求，同层不重复，新层重新询问", async () => {
-  const h = await browserHarness("local");
-  await receiveNope(h, nopeRoom());
-  assert.equal(h.state.modal, "nope-prompt");
-  assert.match(h.nodes["#app"].innerHTML, /data-nope-seconds/);
-  assert.match(h.nodes["#app"].innerHTML, /打出否定/);
-  const key = h.state.nopeInfo.key;
-  const count = h.requests.length;
-  await h.click("nope-pass", { window:key });
-  assert.equal(h.state.modal, null);
-  assert.equal(h.requests.length, count);
-  await receiveNope(h, { ...structuredClone(h.state.room), revision:20 });
-  assert.equal(h.state.modal, null);
-  await receiveNope(h, nopeRoom(1));
-  assert.equal(h.state.modal, "nope-prompt");
-  assert.match(h.nodes["#app"].innerHTML, /打出反否定/);
-  await h.click("nope-response", { window:key });
-  assert.equal(h.requests.length, count);
-});
-test("browser 否定到期收起、无牌或旁观不提示，关闭房间清理", async () => {
-  const h = await browserHarness("local");
-  await receiveNope(h, nopeRoom());
-  const key = h.state.nopeInfo.key;
-  h.state.clockOffset = 20000;
-  vm.runInContext("countdown()", h.context);
-  assert.equal(h.state.modal, null);
-  const count = h.requests.length;
-  await h.click("nope-response", {window:key});
-  assert.equal(h.requests.length, count);
-  await receiveNope(h, nopeRoom(1, []));
-  assert.equal(h.state.modal, null);
-  const spectator = nopeRoom(2);
-  spectator.game.players[0].alive = false;
-  await receiveNope(h, spectator);
-  assert.equal(h.state.modal, null);
-  await receiveNope(h, nopeRoom(3));
-  assert.equal(h.state.modal, "nope-prompt");
-  await receiveNope(h, { code:"123456",revision:99,status:"closed",players:[],game:null });
-  assert.equal(h.state.nopeInfo, null);
-});
-test("browser 否定失败可重试，当前窗口按钮只发送一张本人否定", async () => {
-  const h = await browserHarness("local");
-  await receiveNope(h, nopeRoom());
-  const key = h.state.nopeInfo.key;
-  h.context.fetch = async () => { throw Error("暂时断网"); };
-  await h.click("nope-response", {window:key});
-  assert.equal(h.state.modal, "nope-prompt");
-  assert.equal(h.state.busy, false);
+test("browser 原页面固定是否选择否定；不出发送请求、成功后不可改出", async () => {
+  const h = await browserHarness("local"), r=nopeRoom();
+  await receiveNope(h,r);
+  assert.equal(h.state.modal,null);
+  assert.match(h.nodes["#app"].innerHTML,/是否选择否定/);
+  assert.doesNotMatch(h.nodes["#app"].innerHTML,/role="dialog"/);
+  const key=h.state.nopeInfo.key;
   let submitted;
-  h.context.fetch = async (url, options) => {
-    submitted = JSON.parse(options.body);
-    return { ok:true, json:async()=>nopeRoom(1, []) };
+  h.context.fetch=async (url,options)=>{
+    submitted=JSON.parse(options.body);
+    const next=structuredClone(r); next.revision++; next.game.pending.responses={a:"passed",b:"waiting"};
+    return {ok:true,json:async()=>next};
   };
-  await h.click("nope-response", {window:key});
-  assert.equal(submitted.type, "nope");
-  assert.equal(submitted.cardId, "n1");
-  assert.equal(h.state.modal, null);
+  await h.click("nope-pass",{window:key});
+  assert.equal(submitted.type,"passNope");
+  assert.equal(h.state.nopeInfo.remaining,0);
+  assert.equal(h.state.nopeInfo.canNope,false);
+  assert.match(h.nodes["#app"].innerHTML,/已选择不出/);
+  assert.doesNotMatch(h.nodes["#app"].innerHTML,/data-action="nope-response"/);
+  submitted=null;
+  await h.click("nope-response",{window:key});
+  assert.equal(submitted,null);
+  await receiveNope(h,nopeRoom(1));
+  assert.equal(h.state.modal,null);
+  assert.match(h.nodes["#app"].innerHTML,/打出反否定/);
 });
-test("browser 公共倒计时与弹窗同步，最后3秒文字/颜色突出，截止后禁用", async () => {
-  const h = await browserHarness("local");
-  const r = nopeRoom();
-  const digits = [{}, {}], notes = [{}, {}], bars = [{ style:{} }];
-  const classes = [new Set(), new Set()];
-  const panels = classes.map(set => ({ classList:{ toggle:(name, on)=>on ? set.add(name) : set.delete(name) } }));
-  const buttons = [{}];
-  h.context.document.querySelectorAll = selector => ({
-    "[data-nope-seconds]": digits,
-    "[data-nope-note]": notes,
-    "[data-nope-panel]": panels,
-    "[data-nope-progress]": bars,
-    '[data-action="nope"], [data-action="nope-response"]': buttons,
-  }[selector] || []);
-  await receiveNope(h, r);
-  h.state.clockOffset = r.game.deadline - Date.now() - 2000;
-  vm.runInContext("countdown()", h.context);
-  assert.deepEqual(digits.map(d=>d.textContent), [2,2]);
-  assert(notes.every(n=>n.textContent === "即将结束"));
-  assert(classes.every(c=>c.has("urgent")));
-  assert.equal(buttons[0].disabled, false);
-  assert(parseFloat(bars[0].style.width) <= 20);
-  h.state.clockOffset = 20000;
-  vm.runInContext("countdown()", h.context);
-  assert.equal(h.state.modal, null);
-  assert.equal(buttons[0].disabled, true);
+test("browser 失败可重试，无牌可确认不出，旁观与截止禁用", async () => {
+  const h=await browserHarness("local");
+  await receiveNope(h,nopeRoom());
+  const key=h.state.nopeInfo.key;
+  h.context.fetch=async ()=>{throw Error("暂时断网");};
+  await h.click("nope-pass",{window:key});
+  assert.equal(h.state.nopeInfo.canPass,true);
+  assert.equal(h.state.busy,false);
+  await receiveNope(h,nopeRoom(1,[]));
+  assert.equal(h.state.nopeInfo.canNope,false);
+  assert.equal(h.state.nopeInfo.canPass,true);
+  const spectator=nopeRoom(2); spectator.game.players[0].alive=false;
+  await receiveNope(h,spectator); assert.equal(h.state.nopeInfo.canPass,false);
+  await receiveNope(h,nopeRoom(3));
+  h.state.clockOffset=20000; vm.runInContext("countdown()",h.context);
+  assert.equal(h.state.nopeInfo.canPass,false);
+});
+test("browser 最后3秒文字颜色突出，截止后禁用两个选择", async () => {
+  const h=await browserHarness("local"), r=nopeRoom();
+  const digits=[{}],notes=[{}],bars=[{style:{}}],classes=new Set();
+  const panels=[{classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name)}}], buttons=[{}],passButtons=[{}];
+  h.context.document.querySelectorAll=selector=>({
+    "[data-nope-seconds]":digits,"[data-nope-note]":notes,"[data-nope-panel]":panels,"[data-nope-progress]":bars,
+    '[data-action="nope"], [data-action="nope-response"]':buttons,
+    '[data-action="nope-pass"]':passButtons,
+  }[selector]||[]);
+  await receiveNope(h,r);
+  h.state.clockOffset=r.game.deadline-Date.now()-2000;
+  vm.runInContext("countdown()",h.context);
+  assert.equal(digits[0].textContent,2); assert.equal(notes[0].textContent,"即将结束");
+  assert(classes.has("urgent")); assert.equal(buttons[0].disabled,false);
+  h.state.clockOffset=20000; vm.runInContext("countdown()",h.context);
+  assert.equal(buttons[0].disabled,true); assert.equal(passButtons[0].disabled,true);
 });

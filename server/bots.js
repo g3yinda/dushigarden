@@ -21,12 +21,14 @@ function chooseAction(
   if (g.phase === "nope") {
     const pending = g.pending;
     const nope = hand.find((c) => c.type === "nope");
-    if (!respondNope || !pending || !nope) return null;
+    if (!pending || (pending.responses?.[id] && pending.responses[id] !== "waiting")) return null;
+    const pass = { type: "passNope", nopeCount: pending.nopeCount };
+    if (!respondNope || !nope) return pass;
     const actorBot = room.players.find((p) => p.id === pending.actor)?.isBot;
     const restoreOwn = pending.actor === id && pending.nopeCount % 2 === 1;
     const cancelHuman =
       pending.actor !== id && !actorBot && pending.nopeCount % 2 === 0;
-    return restoreOwn || cancelHuman ? { type: "nope", cardId: nope.id } : null;
+    return restoreOwn || cancelHuman ? { type: "nope", cardId: nope.id, nopeCount: pending.nopeCount } : pass;
   }
   if (g.phase === "favor") {
     if (g.pending?.target !== id || !hand.length) return null;
@@ -128,13 +130,9 @@ class BotRunner {
             turn,
             played: seat.botTurn?.turn === turn ? seat.botTurn.played : 0,
           };
-        const context = [
-          g.id,
-          g.version,
-          g.phase,
-          g.current,
-          g.pending?.nopeCount,
-        ].join(":");
+        const context = g.phase === "nope"
+          ? [g.id, g.phase, g.pending?.nopeCount, g.deadline].join(":")
+          : [g.id, g.version, g.phase, g.current].join(":");
         if (memory.context !== context) {
           memory.context = context;
           memory.due = this.now() + this.delay;

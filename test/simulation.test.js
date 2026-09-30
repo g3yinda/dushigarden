@@ -29,7 +29,7 @@ for (const n of [2, 3, 4, 5])
         let a;
         if (g.phase === "nope") {
           const neg = g.players.find(
-            (p) => p.alive && p.hand.some((c) => c.type === "nope"),
+            (p) => p.alive && g.pending.responses[p.id] === "waiting" && p.hand.some((c) => c.type === "nope"),
           );
           if (neg && rng() < 0.15) {
             actor = neg.id;

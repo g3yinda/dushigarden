@@ -30,7 +30,6 @@ const S = {
   noTurnTimer: false,
   nopeSeconds: 10,
   nopeInfo: null,
-  nopeSeenKey: "",
   handExpanded: false,
   error: "",
   connection: "",
@@ -96,7 +95,7 @@ function accept(r) {
     Object.assign(S, {
       room: null, selected: [], modal: null, target: "",
       resume: false, connection: "", handExpanded: false,
-      nopeInfo: null, nopeSeenKey: "",
+      nopeInfo: null,
     });
     render();
     toast("房主已关闭房间，请重新开局");
@@ -124,16 +123,12 @@ function accept(r) {
   if (old?.code !== r.code || old?.game?.id !== r.game?.id)
     motionPlayer.clear();
   U.motions(old, r).forEach((effect) => motionPlayer.push(effect));
-  syncNopePrompt();
+  syncNopeResponse();
   render();
 }
-function syncNopePrompt() {
+function syncNopeResponse() {
   S.nopeInfo = U.nopeResponse(S.room, Date.now() + S.clockOffset);
-  const key = S.nopeInfo?.key || "", before = S.modal;
-  if (key !== S.nopeSeenKey && S.nopeInfo?.canNope) S.modal = "nope-prompt";
-  if (S.modal === "nope-prompt" && !S.nopeInfo?.canNope) S.modal = null;
-  S.nopeSeenKey = key;
-  return before !== S.modal;
+
 }
 async function session() {
   if (S.token) {
@@ -192,7 +187,6 @@ async function cmd(type, payload = {}) {
       S.resume = !!r;
       S.room = null;
       S.nopeInfo = null;
-      S.nopeSeenKey = "";
       motionPlayer.clear();
       S.selected = [];
       S.modal = null;
@@ -231,7 +225,7 @@ async function poll() {
         Object.assign(S, {
           room: null, modal: null, selected: [], target: "",
           resume: false, handExpanded: false, connection: "",
-          nopeInfo: null, nopeSeenKey: "",
+          nopeInfo: null,
         });
         if (e.status === 401) {
           S.token = null;
@@ -272,7 +266,7 @@ function game(r, v) {
   const g = r.game;
   const finished = g.phase === "finished";
   const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · 朋友局</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
-  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canNope ? btn("否定这个效果", "nope") : ""}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -284,8 +278,13 @@ function game(r, v) {
 }
 function phase(r, v) {
   let g = r.game;
-  if (g.phase === "nope")
-    return `<div class="nope-banner ${S.nopeInfo?.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-banner-copy"><h3>否定响应中</h3><p>${esc(S.nopeInfo?.actorName)} · ${esc(S.nopeInfo?.actionName)}</p><strong>${esc(S.nopeInfo?.stateText)}</strong></div>${nopeClock()}<div class="nope-progress"><span data-nope-progress style="width:${S.nopeInfo?.progress ?? 0}%"></span></div></div>`;
+  if (g.phase === "nope") {
+    const info = S.nopeInfo;
+    const choices = info?.canPass
+      ? `<div class="nope-choices">${info.canNope ? btn(info.buttonText, "nope-response", "primary nope-choice", false, `data-window="${esc(info.key)}"`) : ""}${btn("本次不出", "nope-pass", "secondary nope-choice", false, `data-window="${esc(info.key)}"`)}</div><p class="nope-hint">${info.canNope ? esc(info.resultText) + " · " : ""}选择不出后，本轮不能更改</p>`
+      : `<p class="nope-completed">${esc(info?.statusText)}</p>`;
+    return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-banner-copy"><h3>是否选择否定</h3><p>${esc(info?.actorName)} · ${esc(info?.actionName)}</p><strong>${esc(info?.stateText)}</strong></div>${info?.canPass ? nopeClock() : `<div class="nope-check">${info?.done ? "✓" : "…"}</div>`}${choices}<p class="nope-waiting">等待 ${info?.waiting ?? 0} 位玩家完成响应</p>${info?.canPass ? `<div class="nope-progress"><span data-nope-progress style="width:${info.progress}%"></span></div>` : ""}</div>`;
+  }
   if (g.phase === "future" && g.future)
     return `<div class="phase"><h3>悄悄看，只有你知道</h3><p>从左到右，第一张是下一次会抽到的牌。</p><div class="future">${g.future.map((c, i) => `<div><p class="small muted center">第 ${i + 1} 张</p>${card(c)}</div>`).join("")}</div>${btn("看好了，继续", "closeFuture")}</div>`;
   if (g.phase === "favor" && g.pending?.target === v.myId)
@@ -305,13 +304,6 @@ function modal() {
     title = "";
   let v = U.derive(S.room, S.selected, S.localMode);
   switch (S.modal) {
-    case "nope-prompt": {
-      const info = S.nopeInfo;
-      if (!info?.canNope) return "";
-      title = info.title;
-      body = `<div class="nope-prompt ${info.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-context"><div class="nope-symbol" aria-hidden="true">✋</div><div><strong>${esc(info.actorName)} · ${esc(info.actionName)}</strong><p>${esc(info.stateText)}</p></div>${nopeClock()}</div><p class="nope-result">${esc(info.resultText)}</p>${btn(info.buttonText, "nope-response", "primary", false, `data-window="${esc(info.key)}"`)}${btn("本次不出", "nope-pass", "secondary", false, `data-window="${esc(info.key)}"`)}<p class="nope-hint">本次不出后，仍可在倒计时结束前改为打出</p></div>`;
-      break;
-    }
     case "create":
       title = "一起开一局";
       body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p>${btn("创建好友房", "create-submit")}`;
@@ -369,7 +361,7 @@ function modal() {
       body = `<p class="close-explanation">当前对局将立即终止，不产生胜者。所有成员返回大厅，房间号失效。</p><p class="muted space">关闭后无法恢复这一局。</p>${btn("确认关闭房间", "close-room-submit", "danger-primary")}${btn("继续游戏", "close", "secondary")}`;
       break;
   }
-  return `<div class="overlay-screen ${["play", "create", "close-room", "nope-prompt"].includes(S.modal) ? "centered" : ""}"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
+  return `<div class="overlay-screen ${["play", "create", "close-room"].includes(S.modal) ? "centered" : ""}"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
 }
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
@@ -382,23 +374,23 @@ function render() {
   countdown();
 }
 function countdown() {
-  if (syncNopePrompt()) {
-    render();
-    return;
-  }
+  syncNopeResponse();
   const info = S.nopeInfo;
   for (const timer of document.querySelectorAll?.("[data-nope-seconds]") || [])
     timer.textContent = info?.remaining ?? 0;
   for (const panel of document.querySelectorAll?.("[data-nope-panel]") || [])
-    panel.classList.toggle("urgent", !!info && info.remaining <= 3);
+    panel.classList.toggle("urgent", !!info?.canPass && info.remaining <= 3);
   for (const note of document.querySelectorAll?.("[data-nope-note]") || [])
     note.textContent = info?.remaining === 0 ? "等待结算" : info?.remaining <= 3 ? "即将结束" : "剩余时间";
   for (const bar of document.querySelectorAll?.("[data-nope-progress]") || [])
     bar.style.width = (info?.progress ?? 0) + "%";
   for (const button of document.querySelectorAll?.('[data-action="nope"], [data-action="nope-response"]') || [])
     button.disabled = S.busy || !info?.canNope;
+  for (const button of document.querySelectorAll?.('[data-action="nope-pass"]') || [])
+    button.disabled = S.busy || !info?.canPass;
   const node = $("[data-countdown]");
   if (!node) return;
+  if (info?.done) { node.textContent = "已响应"; return; }
   if (!S.room?.game?.deadline) {
     node.textContent = "∞ 不限时";
     return;
@@ -433,17 +425,13 @@ document.addEventListener("click", async (e) => {
   try {
     if (["nope-response", "nope-pass", "nope"].includes(a)) {
       const response = U.nopeResponse(S.room, Date.now() + S.clockOffset);
-      if (!response?.canNope || (a !== "nope" && b.dataset.window !== response.key)) {
+      if (!(a === "nope-pass" ? response?.canPass : response?.canNope) || (a !== "nope" && b.dataset.window !== response.key)) {
         countdown();
         toast("响应窗口已变化，请查看当前提示");
         return;
       }
-      if (a === "nope-pass") {
-        S.modal = null;
-        render();
-        return;
-      }
-      return await cmd("nope", { cardId: response.cardId });
+      if (a === "nope-pass") return await cmd("passNope", { nopeCount: response.nopeCount });
+      return await cmd("nope", { cardId: response.cardId, nopeCount: response.nopeCount });
     }
     if (a === "nope-time") {
       const seconds = Number(b.dataset.seconds);

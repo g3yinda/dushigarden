@@ -1158,13 +1158,9 @@ button.danger-primary {
 .urgent .nope-clock { color: #b63822; }
 .urgent .nope-progress { background: #f6d8d0; }
 .urgent .nope-progress > view { background: #bf452e; }
-.nope-context { display: flex; align-items: center; gap: 16rpx; padding: 26rpx 20rpx; border: 1rpx solid #dce9f8; border-radius: 32rpx; background: #f5f9ff; margin-top: 22rpx; }
-.nope-context-copy { flex: 1; min-width: 0; }
-.nope-context .strong { font-size: 26rpx; }
-.nope-context .muted { font-size: 22rpx; margin-top: 7rpx; }
-.nope-context .nope-clock { min-width: 110rpx; }
-.nope-context .nope-seconds { font-size: 60rpx; }
-.nope-symbol { font-size: 40rpx; flex-shrink: 0; }
-.nope-result { font-size: 28rpx; font-weight: 600; padding: 26rpx 0 5rpx; }
-.nope-hint { font-size: 22rpx; color: #647184; line-height: 1.6; text-align: center; margin-top: 22rpx; }
-.urgent .nope-context { background: #fff7f4; border-color: #efc8bd; }
+.nope-choices { width: 100%; display: flex; gap: 18rpx; }
+.nope-choices button.nope-choice { flex: 1; width: 0 !important; margin: 0 !important; min-height: 44px !important; font-size: 26rpx; padding: 18rpx 20rpx; }
+.nope-hint, .nope-waiting, .nope-completed { width: 100%; font-size: 22rpx; line-height: 1.5; }
+.nope-hint, .nope-waiting { color: #53687e; }
+.nope-completed { font-size: 26rpx; font-weight: 600; }
+.nope-check { width: 76rpx; height: 76rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: #dcecff; color: #0066cc; font-size: 40rpx; }

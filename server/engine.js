@@ -49,6 +49,23 @@ function phase(g, name, now) {
       ? null
       : now + duration;
 }
+function responses(g) {
+  return g.pending.responses ||= Object.fromEntries(
+    g.players.filter(p => p.alive).map(p => [p.id, "waiting"]),
+  );
+}
+function openNope(g, now, playedBy = null) {
+  g.pending.responses = Object.fromEntries(
+    g.players.filter(p => p.alive).map(p => [p.id, p.id === playedBy ? "played" : "waiting"]),
+  );
+  phase(g, "nope", now);
+}
+function checkResponse(g, id, a) {
+  if (g.phase !== "nope") fail("现在没有可否定的动作");
+  if (a.nopeCount !== undefined && a.nopeCount !== g.pending.nopeCount)
+    throw new GameError("响应窗口已变化，请查看当前提示", "STALE");
+  if (responses(g)[id] !== "waiting") fail("本轮已完成选择，请等待其他玩家");
+}
 function resume(g, now) {
   g.pending = null;
   g.future = null;
@@ -301,7 +318,7 @@ function play(g, id, a, now) {
       cards: cards.map((c) => ({ id: c.id, type: c.type })),
     },
   );
-  phase(g, "nope", now);
+  openNope(g, now);
 }
 function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   const g = clone(state);
@@ -310,7 +327,7 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   if (g.deadline !== null && now >= g.deadline)
     throw new GameError("操作窗口已结束，请刷新", "STALE");
   if (a.type === "nope") {
-    if (g.phase !== "nope") fail("现在没有可否定的动作");
+    checkResponse(g, id, a);
     const c = p.hand.find((c) => c.id === a.cardId);
     if (!c || c.type !== "nope") fail("请选择否定牌");
     g.discard.push(remove(p, c.id));
@@ -326,7 +343,13 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
         nopeCount: g.pending.nopeCount,
       },
     );
-    phase(g, "nope", now);
+    openNope(g, now, id);
+  } else if (a.type === "passNope") {
+    if (!Number.isInteger(a.nopeCount)) fail("请选择当前否定窗口");
+    checkResponse(g, id, a);
+    responses(g)[id] = "passed";
+    if (Object.values(responses(g)).every(status => status !== "waiting"))
+      resolve(g, now, rng);
   } else if (g.phase === "favor" && a.type === "give") {
     if (g.pending.target !== id) fail("请等待对方交牌");
     transfer(g, id, g.pending.actor, a.cardId);
@@ -410,7 +433,9 @@ function project(g, id) {
     hand: clone(p.hand),
     deckCount: g.deck.length,
     discard: clone(g.discard),
-    pending: clone(g.pending),
+    pending: g.phase === "nope"
+      ? { ...clone(g.pending), responses: clone(g.pending.responses || Object.fromEntries(g.players.filter(p => p.alive).map(p => [p.id, "waiting"]))) }
+      : clone(g.pending),
     winner: g.winner,
     logs: clone(g.logs),
     privateLog: clone(g.privateLogs[id] || []),
