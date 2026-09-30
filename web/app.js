@@ -29,6 +29,8 @@ const S = {
   respondNope: false,
   noTurnTimer: false,
   nopeSeconds: 10,
+  nopeInfo: null,
+  nopeSeenKey: "",
   handExpanded: false,
   error: "",
   connection: "",
@@ -94,6 +96,7 @@ function accept(r) {
     Object.assign(S, {
       room: null, selected: [], modal: null, target: "",
       resume: false, connection: "", handExpanded: false,
+      nopeInfo: null, nopeSeenKey: "",
     });
     render();
     toast("房主已关闭房间，请重新开局");
@@ -121,7 +124,16 @@ function accept(r) {
   if (old?.code !== r.code || old?.game?.id !== r.game?.id)
     motionPlayer.clear();
   U.motions(old, r).forEach((effect) => motionPlayer.push(effect));
+  syncNopePrompt();
   render();
+}
+function syncNopePrompt() {
+  S.nopeInfo = U.nopeResponse(S.room, Date.now() + S.clockOffset);
+  const key = S.nopeInfo?.key || "", before = S.modal;
+  if (key !== S.nopeSeenKey && S.nopeInfo?.canNope) S.modal = "nope-prompt";
+  if (S.modal === "nope-prompt" && !S.nopeInfo?.canNope) S.modal = null;
+  S.nopeSeenKey = key;
+  return before !== S.modal;
 }
 async function session() {
   if (S.token) {
@@ -179,6 +191,8 @@ async function cmd(type, payload = {}) {
     if (type === "leave") {
       S.resume = !!r;
       S.room = null;
+      S.nopeInfo = null;
+      S.nopeSeenKey = "";
       motionPlayer.clear();
       S.selected = [];
       S.modal = null;
@@ -217,6 +231,7 @@ async function poll() {
         Object.assign(S, {
           room: null, modal: null, selected: [], target: "",
           resume: false, handExpanded: false, connection: "",
+          nopeInfo: null, nopeSeenKey: "",
         });
         if (e.status === 401) {
           S.token = null;
@@ -270,7 +285,7 @@ function game(r, v) {
 function phase(r, v) {
   let g = r.game;
   if (g.phase === "nope")
-    return `<div class="phase"><h3>${esc(v.pendingName)} · 等待响应</h3>${g.pending?.nopeCount % 2 ? "当前将被取消" : "当前将会生效"} · 已否定 ${g.pending?.nopeCount || 0} 次<p class="muted">任何存活玩家都可以使用否定。</p></div>`;
+    return `<div class="nope-banner ${S.nopeInfo?.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-banner-copy"><h3>否定响应中</h3><p>${esc(S.nopeInfo?.actorName)} · ${esc(S.nopeInfo?.actionName)}</p><strong>${esc(S.nopeInfo?.stateText)}</strong></div>${nopeClock()}<div class="nope-progress"><span data-nope-progress style="width:${S.nopeInfo?.progress ?? 0}%"></span></div></div>`;
   if (g.phase === "future" && g.future)
     return `<div class="phase"><h3>悄悄看，只有你知道</h3><p>从左到右，第一张是下一次会抽到的牌。</p><div class="future">${g.future.map((c, i) => `<div><p class="small muted center">第 ${i + 1} 张</p>${card(c)}</div>`).join("")}</div>${btn("看好了，继续", "closeFuture")}</div>`;
   if (g.phase === "favor" && g.pending?.target === v.myId)
@@ -281,12 +296,22 @@ function phase(r, v) {
     return `<div class="phase"><h3>秘密放回炸弹</h3><p>位置只有你知道，其他牌的顺序不会改变。</p><label for="position">选择插入位置</label><select id="position">${v.positions.map((p) => `<option value="${p.value}" ${S.position === p.value ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>${btn("确认放回", "insert")}</div>`;
   return "";
 }
+function nopeClock() {
+  return `<div class="nope-clock"><span class="nope-clock-note" data-nope-note>剩余时间</span><div><strong data-nope-seconds>${S.nopeInfo?.remaining ?? 0}</strong><span>秒</span></div></div>`;
+}
 function modal() {
   if (!S.modal) return "";
   let body = "",
     title = "";
   let v = U.derive(S.room, S.selected, S.localMode);
   switch (S.modal) {
+    case "nope-prompt": {
+      const info = S.nopeInfo;
+      if (!info?.canNope) return "";
+      title = info.title;
+      body = `<div class="nope-prompt ${info.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-context"><div class="nope-symbol" aria-hidden="true">✋</div><div><strong>${esc(info.actorName)} · ${esc(info.actionName)}</strong><p>${esc(info.stateText)}</p></div>${nopeClock()}</div><p class="nope-result">${esc(info.resultText)}</p>${btn(info.buttonText, "nope-response", "primary", false, `data-window="${esc(info.key)}"`)}${btn("本次不出", "nope-pass", "secondary", false, `data-window="${esc(info.key)}"`)}<p class="nope-hint">本次不出后，仍可在倒计时结束前改为打出</p></div>`;
+      break;
+    }
     case "create":
       title = "一起开一局";
       body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p>${btn("创建好友房", "create-submit")}`;
@@ -344,7 +369,7 @@ function modal() {
       body = `<p class="close-explanation">当前对局将立即终止，不产生胜者。所有成员返回大厅，房间号失效。</p><p class="muted space">关闭后无法恢复这一局。</p>${btn("确认关闭房间", "close-room-submit", "danger-primary")}${btn("继续游戏", "close", "secondary")}`;
       break;
   }
-  return `<div class="overlay-screen ${S.modal === "play" || S.modal === "create" || S.modal === "close-room" ? "centered" : ""}"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
+  return `<div class="overlay-screen ${["play", "create", "close-room", "nope-prompt"].includes(S.modal) ? "centered" : ""}"><section class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
 }
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
@@ -357,6 +382,21 @@ function render() {
   countdown();
 }
 function countdown() {
+  if (syncNopePrompt()) {
+    render();
+    return;
+  }
+  const info = S.nopeInfo;
+  for (const timer of document.querySelectorAll?.("[data-nope-seconds]") || [])
+    timer.textContent = info?.remaining ?? 0;
+  for (const panel of document.querySelectorAll?.("[data-nope-panel]") || [])
+    panel.classList.toggle("urgent", !!info && info.remaining <= 3);
+  for (const note of document.querySelectorAll?.("[data-nope-note]") || [])
+    note.textContent = info?.remaining === 0 ? "等待结算" : info?.remaining <= 3 ? "即将结束" : "剩余时间";
+  for (const bar of document.querySelectorAll?.("[data-nope-progress]") || [])
+    bar.style.width = (info?.progress ?? 0) + "%";
+  for (const button of document.querySelectorAll?.('[data-action="nope"], [data-action="nope-response"]') || [])
+    button.disabled = S.busy || !info?.canNope;
   const node = $("[data-countdown]");
   if (!node) return;
   if (!S.room?.game?.deadline) {
@@ -391,6 +431,20 @@ document.addEventListener("click", async (e) => {
   if (!b || b.disabled || S.busy) return;
   const a = b.dataset.action;
   try {
+    if (["nope-response", "nope-pass", "nope"].includes(a)) {
+      const response = U.nopeResponse(S.room, Date.now() + S.clockOffset);
+      if (!response?.canNope || (a !== "nope" && b.dataset.window !== response.key)) {
+        countdown();
+        toast("响应窗口已变化，请查看当前提示");
+        return;
+      }
+      if (a === "nope-pass") {
+        S.modal = null;
+        render();
+        return;
+      }
+      return await cmd("nope", { cardId: response.cardId });
+    }
     if (a === "nope-time") {
       const seconds = Number(b.dataset.seconds);
       if ([15, 10, 5].includes(seconds)) S.nopeSeconds = seconds;
@@ -534,10 +588,6 @@ document.addEventListener("click", async (e) => {
         await cmd("kick", { target: b.dataset.id });
       return;
     }
-    if (a === "nope")
-      return await cmd("nope", {
-        cardId: S.room.game.hand.find((c) => c.type === "nope").id,
-      });
     if (a === "give") return await cmd("give", { cardId: S.selected[0] });
     if (a === "insert") return await cmd("insert", { position: S.position });
     if (a === "leave-submit") return await cmd("leave");

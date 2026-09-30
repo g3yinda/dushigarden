@@ -26,6 +26,8 @@ Page({
     noTurnTimer: false,
     nopeSeconds: 10,
     nopeTimes: [15, 10, 5],
+    nopeInfo: null,
+    nopeSeenKey: "",
     handScroll: 0,
     handExpanded: false,
     motionItems: [],
@@ -168,6 +170,7 @@ Page({
       this.setData({
         room: null, v: {}, selected: [], modal: "", target: "",
         connection: "", canResume: false, handExpanded: false, handScroll: 0,
+        nopeInfo: null, nopeSeenKey: "",
       });
       this.notice("房主已关闭房间，请重新开局");
       return;
@@ -224,6 +227,12 @@ Page({
     this.tick();
   },
   tick() {
+    const nopeInfo = U.nopeResponse(this.data.room, Date.now() + (this.offset || 0));
+    const key = nopeInfo?.key || "";
+    let modal = this.data.modal;
+    if (key !== this.data.nopeSeenKey && nopeInfo?.canNope) modal = "nope-prompt";
+    if (modal === "nope-prompt" && !nopeInfo?.canNope) modal = "";
+    this.setData({ nopeInfo, nopeSeenKey: key, modal });
     let deadline = this.data.room?.game?.deadline;
     if (!deadline) {
       this.setData({ countdown: null });
@@ -270,6 +279,7 @@ Page({
           this.setData({
             room: null, modal: "", v: {}, selected: [], target: "",
             canResume: false, handExpanded: false, handScroll: 0, connection: "",
+            nopeInfo: null, nopeSeenKey: "",
           });
           this.notice(e.message);
           return;
@@ -309,6 +319,7 @@ Page({
           selected: [],
           modal: "",
           canResume: !!r,
+          nopeInfo: null, nopeSeenKey: "",
         });
         return;
       }
@@ -392,6 +403,19 @@ Page({
       id = e.currentTarget.dataset.id;
     if (this.data.busy) return;
     try {
+      if (["nope-response", "nope-pass", "nope"].includes(a)) {
+        const response = U.nopeResponse(this.data.room, Date.now() + (this.offset || 0));
+        if (!response?.canNope || (a !== "nope" && e.currentTarget.dataset.window !== response.key)) {
+          this.tick();
+          this.notice("响应窗口已变化，请查看当前提示");
+          return;
+        }
+        if (a === "nope-pass") {
+          this.setData({ modal: "" });
+          return;
+        }
+        return await this.command("nope", { cardId: response.cardId });
+      }
       if (a === "nope-time") {
         const seconds = Number(e.currentTarget.dataset.seconds);
         if (this.data.nopeTimes.includes(seconds)) this.setData({ nopeSeconds: seconds });
@@ -504,10 +528,6 @@ Page({
         });
       if (a === "ready")
         return await this.command("ready", { ready: !this.data.v.ready });
-      if (a === "nope")
-        return await this.command("nope", {
-          cardId: this.data.room.game.hand.find((c) => c.type === "nope").id,
-        });
       if (a === "give")
         return await this.command("give", { cardId: this.data.selected[0] });
       if (a === "insert")

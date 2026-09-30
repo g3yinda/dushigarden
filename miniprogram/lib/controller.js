@@ -246,6 +246,30 @@
       a?.game?.pending?.nopeCount !== b?.game?.pending?.nopeCount
     );
   }
+  function nopeResponse(r, now = r?.serverNow ?? Date.now()) {
+    const g = r?.game, p = g?.pending;
+    if (r?.status !== "playing" || g?.phase !== "nope" || !p || !Number.isFinite(g.deadline))
+      return null;
+    const remaining = Math.max(0, Math.ceil((g.deadline - now) / 1000));
+    const mine = g.players.find((player) => player.id === me(r));
+    const nope = g.hand.find((c) => c.type === "nope");
+    const actionName = p.type === "pair" ? "同名对子"
+      : p.type === "triple" ? "三张组合" : names[p.type] || "卡牌效果";
+    const canceled = p.nopeCount % 2 === 1;
+    return {
+      key: JSON.stringify([r.code, g.id, p.actor, p.type, p.nopeCount, g.deadline]),
+      canNope: !!mine?.alive && !!nope && remaining > 0,
+      cardId: nope?.id,
+      remaining,
+      progress: Math.min(100, Math.max(0, (g.deadline - now) / ((r.options?.nopeSeconds ?? 10) * 1000) * 100)),
+      actorName: r.players.find((player) => player.id === p.actor)?.name || "一位朋友",
+      actionName,
+      stateText: canceled ? "当前效果将被取消" : "当前效果将会生效",
+      title: canceled ? "要打出反否定吗？" : "要打出否定吗？",
+      buttonText: canceled ? "打出反否定" : "打出否定",
+      resultText: `打出后：${canceled ? "恢复" : "取消"}「${actionName}」`,
+    };
+  }
   function motion(previous, next) {
     const a = previous?.game,
       b = next?.game;
@@ -369,6 +393,7 @@
     derive,
     me,
     contextChanged,
+    nopeResponse,
     motion,
     motions,
     createMotionPlayer,
