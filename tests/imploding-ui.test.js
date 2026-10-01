@@ -69,9 +69,9 @@ for(const client of ['native','browser']) test(`${client} 基础局声明列表�
   if(client==='native') assert(!h.state.namedOptions.some(c=>EXPANSION.includes(c.value)));
   else {h.state.selected=['0'];h.state.modal='play';h.context.nextRoom=next;vm.runInContext('render()',h.context);assert.doesNotMatch(h.nodes['#app'].innerHTML,/<option value="(?:feral|imploding)"/);}
 });
-test('browser 私密重排、方向与危险牌提示真实渲染，旁观者不展示私密牌',async()=>{
+test('browser 私密重排与危险牌提示真实渲染，方向说明精简，旁观者不展示私密牌',async()=>{
  const h=await browser();const r=room([],'alterFuture');r.game.future=[{id:'secret',type:'bomb'}];r.game.deckTop={id:'i',type:'imploding',faceUp:true};h.accept(r);
- assert.match(h.nodes['#app'].innerHTML,/确认顺序/);assert.match(h.nodes['#app'].innerHTML,/牌顶.*内爆猫/);assert.match(h.nodes['#app'].innerHTML,/逆时针/);assert.match(h.nodes['#app'].innerHTML,/data-action="future-down"/);
+ assert.match(h.nodes['#app'].innerHTML,/确认顺序/);assert.match(h.nodes['#app'].innerHTML,/牌顶.*内爆猫/);assert.doesNotMatch(h.nodes['#app'].innerHTML,/table-direction|逆时针/);assert.match(h.nodes['#app'].innerHTML,/data-action="future-down"/);
  r.me='b';h.accept(r);assert.doesNotMatch(h.nodes['#app'].innerHTML,/确认顺序|data-action="future-down"/);
 });
 
@@ -109,9 +109,9 @@ test('规则模式标记区分新扩展、基础版、历史六人局及等待�
  r.game=null;r.status='waiting';assert.equal(U.derive(r,[]).rulesLabel,'基础版');
  r.players.push({id:'d'},{id:'e'},{id:'f'});assert.equal(U.derive(r,[]).rulesLabel,'完整内爆猫扩展');
 });
-test('浏览器私密未来真实显示内爆状态，桌面和准备页显示规则模式',async()=>{
+test('浏览器私密未来显示内爆状态，规则模式只在准备页显示',async()=>{
  const h=await browser();const r=room([], 'alterFuture');r.game.future=[{id:'up',type:'imploding',faceUp:true},{id:'down',type:'imploding',faceUp:false}];h.accept(r);
- assert.match(h.nodes['#app'].innerHTML,/已翻面：抽到立即出局/);assert.match(h.nodes['#app'].innerHTML,/未翻面：抽到翻面放回/);assert.match(h.nodes['#app'].innerHTML,/BOOMCAT · 完整内爆猫扩展/);
+ assert.match(h.nodes['#app'].innerHTML,/已翻面：抽到立即出局/);assert.match(h.nodes['#app'].innerHTML,/未翻面：抽到翻面放回/);assert.doesNotMatch(h.nodes['#app'].innerHTML,/table-brand|BOOMCAT · 完整内爆猫扩展/);
  const waiting=structuredClone(r);waiting.revision++;waiting.game=null;waiting.status='waiting';h.accept(waiting);assert.match(h.nodes['#app'].innerHTML,/room-mode.*基础版/);
 });
 test('大厅插画人数由真实组件显示2–6，两端解释基础版与六人扩展',async()=>{

@@ -557,6 +557,7 @@ Page({
         if (yes) await this.command("kick", { target: id });
         return;
       }
+      if (a === "draw" && !U.derive(this.data.room, this.data.selected).canDraw) return;
       if (["draw", "defuse", "closeFuture", "start", "rematch"].includes(a))
         return await this.command(a);
     } catch (e) {

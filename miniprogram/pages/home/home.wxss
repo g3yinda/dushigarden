@@ -1184,3 +1184,45 @@ button.danger-primary {
 .motion-tile .card-short { font-size: 21rpx; }
 .motion-count { top: 7rpx; right: 9rpx; font-size: 21rpx; padding: 4rpx 9rpx; }
 .reduced .nope-progress > view { transition: none; }
+
+/* Approved compact first screen; reserve space beneath scrollable private phases. */
+.table-playing.game-shell { padding: 20rpx 28rpx calc(170rpx + env(safe-area-inset-bottom)); }
+.table-playing > .top { margin-bottom: 12rpx; }
+.table-playing .game-room { padding-bottom: 16rpx; }
+.table-playing .board-stage {
+  height: calc(100vh - 400px - env(safe-area-inset-bottom));
+  min-height: 440rpx;
+  max-height: 580rpx;
+}
+.table-playing .hand-caption { height: 84rpx; }
+.table-playing .hand-row { padding-top: 30rpx; padding-bottom: 16rpx; }
+.table-playing .hand .card { height: 260rpx; }
+.table-playing .card-spine { top: 12rpx; bottom: 12rpx; padding: 10rpx 7rpx; font-size: 24rpx; line-height: 1.25; }
+.table-playing .selection-preview { min-height: 0; padding: 8rpx 0; }
+.table-playing .table-actions {
+  position: fixed;
+  z-index: 6;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 20rpx;
+  padding: 20rpx 36rpx calc(20rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1rpx solid #efeff4;
+}
+.table-playing .table-actions > button {
+  display: block !important;
+  flex: 1.8 1 0;
+  width: 0 !important;
+  min-height: 48px;
+  border-radius: 50rpx;
+  font-size: 30rpx;
+  padding: 16rpx 10rpx !important;
+  margin: 0 !important;
+  line-height: 1.5;
+}
+.table-playing .table-actions > .secondary { flex: 1 1 0; border: 1rpx solid #0071e3; color: #0071e3; background: #fff; }
+.table-playing .table-actions > .primary { background: #0071e3 !important; color: #fff !important; }
+.table-playing .table-actions > .primary[disabled] { background: #b4c7ef !important; color: #fff !important; opacity: 1; }

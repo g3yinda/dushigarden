@@ -924,3 +924,56 @@ test("browser 公开行动带回牌桌，私密抽牌不会抢走查看位置",a
  vm.runInContext('S.motion={kind:"play",title:"甲出牌"};renderMotion()',h.context);assert.equal(scrolls.length,1);
  vm.runInContext('S.motion={kind:"draw",title:"新牌"};renderMotion()',h.context);assert.equal(scrolls.length,1);
 });
+
+test("browser 精简首屏移除教学和桌面说明，保留手牌与两枚操作", async () => {
+  const h = await browserHarness("local");
+  const r = { ...structuredClone(room), code: "123456", serverNow: Date.now() };
+  r.game.direction = -1;
+  r.game.rulesVersion = "ek-imploding-2023-online-v1";
+  r.players[1].isBot = true;
+  await receiveNope(h, r);
+  const html = h.nodes["#app"].innerHTML;
+  assert.doesNotMatch(html, /轻点选牌|左右滑动查看手牌|table-direction|table-brand|Bot ·/);
+  assert.match(html, /手牌 <span>3<\/span>/);
+  assert.match(html, /data-action="hand-toggle"/);
+  assert.match(html, /data-action="prepare"[^>]*disabled/);
+  assert.match(html, /data-action="draw"[^>]*>抽牌<\/button>/);
+  assert.doesNotMatch(html, /selection-preview/);
+  await h.click("card", { id: "1" });
+  assert.match(h.nodes["#app"].innerHTML, /selection-preview/);
+  assert.match(h.nodes["#app"].innerHTML, /data-action="detail"/);
+  assert.match(h.nodes["#app"].innerHTML, /data-action="prepare"[^>]*disabled/);
+  await h.click("card", { id: "2" });
+  assert.doesNotMatch(h.nodes["#app"].innerHTML, /data-action="prepare"[^>]*disabled/);
+  await h.click("prepare");
+  assert.equal(h.state.modal, "play");
+  assert.match(h.nodes["#app"].innerHTML, /选择一位对手/);
+});
+
+test("browser 固定抽牌入口在其他回合、否定及旁观态保留但禁用", async () => {
+  for (const state of ["other", "nope", "spectator"]) {
+    const h = await browserHarness("local");
+    const r = { ...structuredClone(room), code: "123456", serverNow: Date.now() };
+    if (state === "other") r.game.current = "b";
+    if (state === "nope") { r.game.phase = "nope"; r.game.pending = { nopeCount: 0 }; }
+    if (state === "spectator") r.game.players[0].alive = false;
+    await receiveNope(h, r);
+    assert.match(h.nodes["#app"].innerHTML, /data-action="draw"[^>]*disabled[^>]*>抽牌<\/button>/, state);
+    await h.click("draw");
+    assert.equal(h.requests.filter(x => x.url.includes("/command")).length, 0, state);
+  }
+});
+
+test("native 常驻抽牌操作不能从非本人回合、否定或旁观态提交", async () => {
+  for (const state of ["other", "nope", "spectator"]) {
+    const page = nativeHarness();
+    const r = structuredClone(room);
+    if (state === "other") r.game.current = "b";
+    if (state === "nope") { r.game.phase = "nope"; r.game.pending = { nopeCount: 0 }; }
+    if (state === "spectator") r.game.players[0].alive = false;
+    page.accept(r);
+    const calls = []; page.command = async (...args) => calls.push(args);
+    await page.action({currentTarget:{dataset:{action:"draw"}}});
+    assert.equal(calls.length, 0, state);
+  }
+});
