@@ -340,6 +340,7 @@ function play(g, id, a, now) {
     {
       kind: "play",
       actor: id,
+      target: type === "attack" ? next(g, id) : g.pending.target,
       cards: cards.map((c) => ({ id: c.id, type: c.type })),
     },
   );
@@ -364,6 +365,7 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
       {
         kind: "nope",
         actor: id,
+        target: g.pending.actor,
         cards: [{ id: c.id, type: c.type }],
         nopeCount: g.pending.nopeCount,
       },

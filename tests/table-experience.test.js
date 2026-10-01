@@ -55,7 +55,7 @@ test("公开组合出牌展示真实牌型、张数与出牌者，不能拿对�
   hidden.game.players[1].count++;
   assert.equal(U.motion(a, hidden), null);
 });
-test("出牌展示至少3秒，相邻效果排队而非覆盖，无效果同步不会清空", () => {
+test("出牌展示5秒，相邻效果排队而非覆盖，无效果同步不会清空", () => {
   const seen = [],
     tasks = [];
   const player = U.createMotionPlayer({
@@ -70,7 +70,7 @@ test("出牌展示至少3秒，相邻效果排队而非覆盖，无效果同步�
   player.push({ kind: "nope", title: "乙否定" });
   player.push(null);
   assert.equal(seen.length, 1);
-  assert.equal(tasks[0].ms, 3000);
+  assert.equal(tasks[0].ms, 5000);
   tasks[0].fn();
   assert.equal(seen.at(-1).title, "乙否定");
   tasks[1].fn();
@@ -93,4 +93,26 @@ test("清理展示队列使旧定时回调失效，不能在新局展示旧牌",
   player.push({ kind: "play", title: "新局出牌" });
   tasks[0]();
   assert.equal(seen.at(-1).title, "新局出牌");
+});
+
+test("行动描述包含真实目标头像和姓名，组合保留每种公开牌名", () => {
+  const before = room(3, 0), after = structuredClone(before);
+  before.game.logs = [];
+  after.game.logs = [{id:1,cardEvent:{kind:"play",actor:"0",target:"2",cards:[{id:"x",type:"targetAttack"}]}}];
+  const effect = U.motions(before,after)[0];
+  assert.equal(effect.relationship,"猫0 向 猫2");
+  assert.equal(effect.actionText,'打出「定向攻击 ×2」');
+  assert.equal(effect.actor.id,"0"); assert.equal(effect.target.id,"2");
+  after.game.logs[0].cardEvent.cards=[{id:"f",type:"feral"},{id:"c",type:"cat1"}];
+  assert.match(U.motions(before,after)[0].actionText,/野猫.*困困猫.*2 张/);
+  delete after.game.logs[0].cardEvent.target;
+  assert.equal(U.motions(before,after)[0].relationship,"猫0");
+});
+test("旧事件缺少目标时不从后来动作猜测，私密抽牌保持短展示", () => {
+  const before=room(3,0),after=structuredClone(before);before.game.logs=[];
+  after.game.pending={actor:"1",target:"2",type:"favor"};
+  after.game.logs=[{id:1,cardEvent:{kind:"play",actor:"0",cards:[{id:"x",type:"favor"}]}}];
+  assert.equal(U.motions(before,after)[0].target,null);
+  const tasks=[];const player=U.createMotionPlayer({show(){},schedule:(_,ms)=>{tasks.push(ms);return 1;}});
+  player.push({kind:"draw"});assert.equal(tasks[0],1600);
 });

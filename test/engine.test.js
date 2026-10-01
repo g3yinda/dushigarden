@@ -44,6 +44,9 @@ test("公开出牌事件保留合并快照中的组合与否定顺序，不暴�
   assert.match(effects[1].title, /猫1/);
   const publicEvents = after.game.logs.filter((l) => l.cardEvent);
   assert.equal(publicEvents.length, 2);
+  assert.equal(publicEvents[0].cardEvent.target, "p1");
+  assert.equal(publicEvents[1].cardEvent.target, "p0");
+  assert.equal(effects[0].relationship, "猫0 向 猫1");
   assert(!JSON.stringify(publicEvents).includes("c4"));
 });
 for (const n of [2, 3, 4, 5, 6])

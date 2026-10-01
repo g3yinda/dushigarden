@@ -175,6 +175,8 @@ Page({
     }
     this.motionPlayer ||= U.createMotionPlayer({
       show: (motion) => {
+        if (motion && !["draw", "future"].includes(motion.kind))
+          wx.pageScrollTo?.({ scrollTop: 0, duration: this.data.settings.reduced ? 0 : 200 });
         // Key each effect so consecutive plays mount a fresh CSS animation node.
         this.motionSequence = (this.motionSequence || 0) + 1;
         this.setData({
@@ -230,7 +232,7 @@ Page({
     this.tick();
   },
   tick() {
-    const nopeInfo = U.nopeResponse(this.data.room, Date.now() + (this.offset || 0));
+    const nopeInfo = U.nopePanel(this.data.room, Date.now() + (this.offset || 0));
     this.setData({ nopeInfo });
     let deadline = this.data.room?.game?.deadline;
     if (!deadline) {

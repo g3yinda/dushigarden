@@ -306,7 +306,7 @@ test("native 连续同类出牌更换动画节点，普通同步不更换节点"
   assert.equal(first.kind, "play");
   page.accept({ ...r, revision: 12 });
   assert.equal(page.data.motionItems[0].renderId, first.renderId);
-  assert.equal(timers[0].ms, 3000);
+  assert.equal(timers[0].ms, 5000);
   timers[0].fn();
   const second = page.data.motionItems[0];
   assert.equal(second.kind, "play");
@@ -833,7 +833,7 @@ test("browser 原页面固定是否选择否定；不出发送请求、成功后
   assert.equal(h.state.nopeInfo.remaining,0);
   assert.equal(h.state.nopeInfo.canNope,false);
   assert.match(h.nodes["#app"].innerHTML,/已选择不出/);
-  assert.doesNotMatch(h.nodes["#app"].innerHTML,/data-action="nope-response"/);
+  assert.match(h.nodes["#app"].innerHTML,/data-action="nope-response" disabled/);
   submitted=null;
   await h.click("nope-response",{window:key});
   assert.equal(submitted,null);
@@ -863,15 +863,64 @@ test("browser 最后3秒文字颜色突出，截止后禁用两个选择", async
   const digits=[{}],notes=[{}],bars=[{style:{}}],classes=new Set();
   const panels=[{classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name)}}], buttons=[{}],passButtons=[{}];
   h.context.document.querySelectorAll=selector=>({
-    "[data-nope-seconds]":digits,"[data-nope-note]":notes,"[data-nope-panel]":panels,"[data-nope-progress]":bars,
+    "[data-nope-timer]":digits,"[data-nope-panel]":panels,"[data-nope-progress]":bars,
     '[data-action="nope"], [data-action="nope-response"]':buttons,
     '[data-action="nope-pass"]':passButtons,
   }[selector]||[]);
   await receiveNope(h,r);
   h.state.clockOffset=r.game.deadline-Date.now()-2000;
   vm.runInContext("countdown()",h.context);
-  assert.equal(digits[0].textContent,2); assert.equal(notes[0].textContent,"即将结束");
+  assert.equal(digits[0].textContent,"剩余 2 秒");
   assert(classes.has("urgent")); assert.equal(buttons[0].disabled,false);
   h.state.clockOffset=20000; vm.runInContext("countdown()",h.context);
   assert.equal(buttons[0].disabled,true); assert.equal(passButtons[0].disabled,true);
+});
+
+for (const seconds of [15,10,5]) test(`常驻否定栏 ${seconds} 秒真实进度，响应后本人计时及进度结束`,()=>{
+ const r=nopeRoom();r.options.nopeSeconds=seconds;r.game.deadline=r.serverNow+seconds*1000;
+ let p=ui.nopePanel(r,r.serverNow+seconds*300);
+ assert.equal(p.canPass,true);assert.equal(Math.round(p.progress),70);
+ assert.match(p.timerText,/剩余.*秒/);
+ r.game.pending.responses={a:"passed",b:"waiting"};p=ui.nopePanel(r,r.serverNow+seconds*400);
+ assert.equal(p.remaining,0);assert.equal(p.progress,0);assert.equal(p.timerText,"已响应");assert.equal(p.canNope,false);
+ r.game.pending.nopeCount++;r.game.pending.responses={a:"waiting",b:"played"};r.game.deadline=r.serverNow+seconds*2000;
+ assert.equal(ui.nopePanel(r,r.game.deadline-seconds*1000).progress,100);
+});
+test("常驻否定栏闲置/旁观/截止保持灰态，无否定牌仍能确认不出",()=>{
+ const r=nopeRoom(0,[]);assert.equal(ui.nopePanel(r,r.serverNow).canNope,false);assert.equal(ui.nopePanel(r,r.serverNow).canPass,true);
+ r.game.players[0].alive=false;assert.equal(ui.nopePanel(r,r.serverNow).progress,0);
+ r.game.players[0].alive=true;assert.equal(ui.nopePanel(r,r.game.deadline).timerText,"等待结算");
+ r.game.phase="action";const idle=ui.nopePanel(r,r.serverNow);assert.equal(idle.timerText,"暂无响应");assert.equal(idle.canPass,false);assert.equal(idle.progress,0);
+ assert.equal(ui.nopePanel(null),null);
+});
+test("browser 常驻紧凑否定栏保留禁用选项，已响应没有本人计时",async()=>{
+ const h=await browserHarness("local");await receiveNope(h,{...structuredClone(room),code:"123456",serverNow:Date.now()});
+ assert.match(h.nodes["#app"].innerHTML,/data-nope-panel/);assert.match(h.nodes["#app"].innerHTML,/暂无响应/);
+ assert.match(h.nodes["#app"].innerHTML,/data-action="nope-response"[^>]*disabled/);
+ const r=nopeRoom();await receiveNope(h,r);assert.match(h.nodes["#app"].innerHTML,/剩余 10 秒/);
+ r.game.pending.responses={a:"passed",b:"waiting"};r.revision++;await receiveNope(h,r);
+ assert.match(h.nodes["#app"].innerHTML,/已响应/);assert.match(h.nodes["#app"].innerHTML,/data-action="nope-pass"[^>]*disabled/);
+ assert.equal(h.state.nopeInfo.progress,0);
+});
+test("native 常驻灰态与截止一致，普通同步不重播行动",()=>{
+ const page=nativeHarness();page.accept({...structuredClone(room),serverNow:Date.now()});assert.equal(page.data.nopeInfo.timerText,"暂无响应");
+ const r=nopeRoom();page.accept(r);r.game.pending.responses={a:"passed",b:"waiting"};r.revision++;page.accept(r);
+ assert.equal(page.data.nopeInfo.timerText,"已响应");assert.equal(page.data.nopeInfo.progress,0);
+});
+
+test("native 公开行动带回牌桌，普通同步和私密抽牌不改滚动位置",()=>{
+ const scrolls=[];const page=nativeHarness(()=>1,{}, {pageScrollTo:options=>scrolls.push(options)});
+ page.data.room=structuredClone(room);let r=structuredClone(room);
+ r.game.logs=[{id:1,cardEvent:{kind:"play",actor:"a",target:"b",cards:[{id:"played",type:"attack"}]}}];
+ page.accept(r);assert.equal(scrolls.length,1);assert.equal(scrolls[0].scrollTop,0);
+ page.accept({...r,revision:12});assert.equal(scrolls.length,1);
+ const other=nativeHarness(()=>1,{}, {pageScrollTo:options=>scrolls.push(options)});other.data.room=structuredClone(room);
+ r=structuredClone(room);r.game.hand.push({id:"private",type:"skip"});other.accept(r);assert.equal(scrolls.length,1);
+});
+test("browser 公开行动带回牌桌，私密抽牌不会抢走查看位置",async()=>{
+ const h=await browserHarness("local"),scrolls=[];
+ h.nodes["#motion-host"]={style:{},innerHTML:""};
+ h.nodes[".board-stage"]={scrollIntoView:options=>scrolls.push(options)};
+ vm.runInContext('S.motion={kind:"play",title:"甲出牌"};renderMotion()',h.context);assert.equal(scrolls.length,1);
+ vm.runInContext('S.motion={kind:"draw",title:"新牌"};renderMotion()',h.context);assert.equal(scrolls.length,1);
 });

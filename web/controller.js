@@ -357,6 +357,29 @@
       resultText: `打出后：${canceled ? "恢复" : "取消"}「${actionName}」`,
     };
   }
+  function nopePanel(r, now = r?.serverNow ?? Date.now()) {
+    if (r?.status !== "playing" || !r.game || r.game.phase === "finished") return null;
+    const info = nopeResponse(r, now);
+    if (!info) return { active: false, key: "", canNope: false, canPass: false, done: false, remaining: 0, progress: 0, timerText: "暂无响应", buttonText: "打出否定", statusText: "当前没有可响应的动作" };
+    return { ...info, active: true, progress: info.canPass ? info.progress : 0,
+      timerText: info.canPass ? `剩余 ${info.remaining} 秒` : info.done ? "已响应" : info.statusText === "正在旁观" ? "正在旁观" : "等待结算" };
+  }
+  function actionPresentation(r, event) {
+    function publicPlayer(id) {
+      const seat = r.players?.find(p => p.id === id), p = r.game.players.find(p => p.id === id);
+      if (!p && !seat) return null;
+      const avatar = Number(p?.avatar ?? seat?.avatar ?? 0);
+      return { id, name: p?.name || seat?.name || "玩家", avatar, avatarStyle: avatars[avatar % 4]?.style || avatars[0].style };
+    }
+    const actor = publicPlayer(event.actor), target = publicPlayer(event.target);
+    const labels = [...new Set(event.cards.map(c => names[c.type] || c.type))].join(" + ");
+    const quantity = event.cards.length > 1 ? ` ×${event.cards.length} 张` : "";
+    const actionText = event.kind === "implode"
+      ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
+      : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
+      : `打出「${labels}」${quantity}`;
+    return { actor, target, relationship: `${actor?.name || "玩家"}${target ? " 向 " + target.name : ""}`, actionText };
+  }
   function motion(previous, next) {
     const a = previous?.game,
       b = next?.game;
@@ -398,6 +421,7 @@
         "玩家";
       return {
         kind: "play",
+        ...actionPresentation(next, { kind: "play", actor: b.pending?.actor || a.current, target: b.pending?.target, cards: b.discard.slice(-count) }),
         title: `${actor}打出 · ${names[c.type]}${count > 1 ? " ×" + count : ""}`,
         count,
         card: card(c),
@@ -421,6 +445,7 @@
         const c = e.cards[0];
         return {
           kind: e.kind === "implode" ? "bomb" : e.kind,
+          ...actionPresentation(next, e),
           count: e.cards.length,
           card: card(e.kind === "implode" ? { ...c, faceUp: true } : c),
           title:
@@ -455,7 +480,7 @@
       }
       const token = generation;
       const duration =
-        current.kind === "draw" || current.kind === "future" ? 1600 : 3000;
+        current.kind === "draw" || current.kind === "future" ? 1600 : 5000;
       timer = schedule(() => {
         if (token === generation) next();
       }, duration);
@@ -488,6 +513,7 @@
     me,
     contextChanged,
     nopeResponse,
+    nopePanel,
     motion,
     motions,
     createMotionPlayer,

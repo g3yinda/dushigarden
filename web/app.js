@@ -46,11 +46,20 @@ const motionPlayer = U.createMotionPlayer({
     renderMotion();
   },
 });
+function positionMotion() {
+  const host = $("#motion-host"), bounds = $(".board-stage")?.getBoundingClientRect?.();
+  if (!host?.style) return;
+  Object.assign(host.style, bounds ? { left: bounds.left + "px", top: bounds.top + "px", width: bounds.width + "px", height: bounds.height + "px" } : { left: "0", top: "0", width: "100%", height: "100%" });
+}
 function renderMotion() {
   const host = $("#motion-host");
   if (!host) return;
-  host.innerHTML = S.motion
-    ? `<div class="motion-layer ${S.motion.kind}"><div class="motion-tile" role="status">${S.motion.card ? card(S.motion.card) : "◉"}${S.motion.count > 1 ? `<span class="motion-count">× ${S.motion.count}</span>` : ""}<strong>${esc(S.motion.title)}</strong></div></div>`
+  if (S.motion && !["draw", "future"].includes(S.motion.kind))
+    $(".board-stage")?.scrollIntoView?.({ block: "center", behavior: S.settings.reduced ? "instant" : "smooth" });
+  positionMotion();
+  const effect = S.motion;
+  host.innerHTML = effect
+    ? `<div class="motion-layer ${effect.kind}"><div class="motion-tile" role="status">${effect.actor ? `<div class="motion-people">${avatar(effect.actor)}${effect.target ? `<span aria-hidden="true">→</span>${avatar(effect.target)}` : ""}</div>` : ""}${effect.relationship ? `<div class="motion-relationship">${esc(effect.relationship)}</div>` : ""}<div class="motion-action">${esc(effect.actionText || effect.title)}</div>${effect.card ? card(effect.card) : "◉"}${effect.count > 1 ? `<span class="motion-count">× ${effect.count}</span>` : ""}</div></div>`
     : "";
 }
 function avatar(p, cls = "") {
@@ -130,7 +139,7 @@ function accept(r) {
   render();
 }
 function syncNopeResponse() {
-  S.nopeInfo = U.nopeResponse(S.room, Date.now() + S.clockOffset);
+  S.nopeInfo = U.nopePanel(S.room, Date.now() + S.clockOffset);
 
 }
 async function session() {
@@ -270,7 +279,7 @@ function game(r, v) {
   const g = r.game;
   const finished = g.phase === "finished";
   const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"><span class="table-brand">BOOMCAT · ${esc(v.rulesLabel)}</span></div>${v.tablePlayers.map((p) => `<div class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.isBot ? "Bot · " : ""}${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 个回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="table-direction">${esc(v.directionText)}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 · ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
-  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${v.deckTop || v.deckBottom ? `<div class="deck-hazards" role="status">${v.deckTop ? "✹ 牌顶：翻面内爆猫 · 抽到即出局" : ""}${v.deckTop && v.deckBottom ? "<br>" : ""}${v.deckBottom ? "✹ 牌底：翻面内爆猫 · 抽到即出局" : ""}</div>` : ""}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸弹猫</h2><p class="muted">好友房 ${esc(r.code)}${v.noTurnTimer ? " · 不限时" : ""}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${v.deckTop || v.deckBottom ? `<div class="deck-hazards" role="status">${v.deckTop ? "✹ 牌顶：翻面内爆猫 · 抽到即出局" : ""}${v.deckTop && v.deckBottom ? "<br>" : ""}${v.deckBottom ? "✹ 牌底：翻面内爆猫 · 抽到即出局" : ""}</div>` : ""}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${nopeBar()}${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>你的手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn("取消选择", "clear", "text-btn") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div><div class="selection-preview"><div class="selection-title">${v.selectedCards.length ? `已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}` : "轻点选牌，可多选同名组合"}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div><p>${S.selected.length ? esc(v.selection.hint) : "左右滑动查看手牌，选中后点下方打出"}</p></div><div class="action-bar">${v.canGive ? btn("交出选中的牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张组合" : ""), "prepare", "primary", !v.selection.valid)}${v.canDraw ? btn(g.attacked ? "抽牌，完成 1 个回合" : "抽牌并结束回合", "draw", "secondary") : ""}</div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
     g.privateLog || []
   )
     .slice(-3)
@@ -282,13 +291,6 @@ function game(r, v) {
 }
 function phase(r, v) {
   let g = r.game;
-  if (g.phase === "nope") {
-    const info = S.nopeInfo;
-    const choices = info?.canPass
-      ? `<div class="nope-choices">${info.canNope ? btn(info.buttonText, "nope-response", "primary nope-choice", false, `data-window="${esc(info.key)}"`) : ""}${btn("本次不出", "nope-pass", "secondary nope-choice", false, `data-window="${esc(info.key)}"`)}</div><p class="nope-hint">${info.canNope ? esc(info.resultText) + " · " : ""}选择不出后，本轮不能更改</p>`
-      : `<p class="nope-completed">${esc(info?.statusText)}</p>`;
-    return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel><div class="nope-banner-copy"><h3>是否选择否定</h3><p>${esc(info?.actorName)} · ${esc(info?.actionName)}</p><strong>${esc(info?.stateText)}</strong></div>${info?.canPass ? nopeClock() : `<div class="nope-check">${info?.done ? "✓" : "…"}</div>`}${choices}<p class="nope-waiting">等待 ${info?.waiting ?? 0} 位玩家完成响应</p>${info?.canPass ? `<div class="nope-progress"><span data-nope-progress style="width:${info.progress}%"></span></div>` : ""}</div>`;
-  }
   if (g.phase === "alterFuture" && S.futureState && v.turn)
     return `<div class="phase reorder-phase"><h3>秘密调整未来</h3><p>从上到下是牌顶顺序，第一张将最先抽到。上下移动后，点确认顺序；只有你能看到。</p><div class="future-order">${S.futureState.cards.map((c, i) => `<div class="future-order-row"><span class="future-rank">${i + 1}</span>${card(c)}<div class="future-moves">${btn("↑ 上移", "future-up", "secondary future-move", !c.canUp, `data-id="${esc(c.id)}" aria-label="上移${esc(c.name)}"`)}${btn("↓ 下移", "future-down", "secondary future-move", !c.canDown, `data-id="${esc(c.id)}" aria-label="下移${esc(c.name)}"`)}</div></div>`).join("")}</div>${btn("确认顺序，继续回合", "orderFuture", "primary", !S.futureState.canConfirm)}</div>`;
   if (g.phase === "future" && g.future && v.turn)
@@ -301,8 +303,10 @@ function phase(r, v) {
     return `<div class="phase"><h3>${esc(v.insertTitle)}</h3><p>${esc(v.insertHint)}</p><label for="position">选择插入位置</label><select id="position">${v.positions.map((p) => `<option value="${p.value}" ${S.position === p.value ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>${btn("确认放回", "insert")}</div>`;
   return "";
 }
-function nopeClock() {
-  return `<div class="nope-clock"><span class="nope-clock-note" data-nope-note>剩余时间</span><div><strong data-nope-seconds>${S.nopeInfo?.remaining ?? 0}</strong><span>秒</span></div></div>`;
+function nopeBar() {
+  const info = S.nopeInfo;
+  const description = info?.active ? `${info.actorName} · ${info.actionName}；${info.stateText}；${info.statusText || "选择不出后，本轮不能更改"}；等待 ${info.waiting} 位玩家` : "当前没有可响应的动作";
+  return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel title="${esc(description)}" aria-label="${esc(description)}"><div class="nope-banner-copy"><h3>是否选择否定？</h3><div class="nope-timer-line"><div class="nope-progress" aria-hidden="true"><span data-nope-progress style="width:${info?.progress || 0}%"></span></div><span class="nope-timer-text" data-nope-timer>${esc(info?.timerText || "暂无响应")}</span></div></div><div class="nope-choices">${btn(esc(info?.buttonText || "打出否定"), "nope-response", "secondary nope-choice nope-play", !info?.canNope, `data-window="${esc(info?.key)}"`)}${btn("本次不出", "nope-pass", "secondary nope-choice", !info?.canPass, `data-window="${esc(info?.key)}"`)}</div></div>`;
 }
 function modal() {
   if (!S.modal) return "";
@@ -374,17 +378,16 @@ function render() {
   $("#app").innerHTML =
     `<div class="shell">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}`;
   if ($(".hand")) $(".hand").scrollLeft = handScroll;
+  positionMotion();
   countdown();
 }
 function countdown() {
   syncNopeResponse();
   const info = S.nopeInfo;
-  for (const timer of document.querySelectorAll?.("[data-nope-seconds]") || [])
-    timer.textContent = info?.remaining ?? 0;
+  for (const timer of document.querySelectorAll?.("[data-nope-timer]") || [])
+    timer.textContent = info?.timerText || "暂无响应";
   for (const panel of document.querySelectorAll?.("[data-nope-panel]") || [])
     panel.classList.toggle("urgent", !!info?.canPass && info.remaining <= 3);
-  for (const note of document.querySelectorAll?.("[data-nope-note]") || [])
-    note.textContent = info?.remaining === 0 ? "等待结算" : info?.remaining <= 3 ? "即将结束" : "剩余时间";
   for (const bar of document.querySelectorAll?.("[data-nope-progress]") || [])
     bar.style.width = (info?.progress ?? 0) + "%";
   for (const button of document.querySelectorAll?.('[data-action="nope"], [data-action="nope-response"]') || [])
@@ -405,6 +408,8 @@ function countdown() {
     ) + "s";
 }
 setInterval(countdown, 250);
+document.addEventListener("scroll", positionMotion, { passive: true, capture: true });
+document.defaultView?.addEventListener("resize", positionMotion);
 document.addEventListener("input", (e) => {
   if (e.target.id === "name") S.name = e.target.value;
   if (e.target.id === "position") S.position = Number(e.target.value);

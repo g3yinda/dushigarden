@@ -1143,7 +1143,7 @@ h3 {
   position: relative;
   width: 235px;
   padding: 18px 22px;
-  animation-duration: 3s;
+  animation-duration: 5s;
 }
 .motion-tile .card {
   width: 170px;
@@ -1161,7 +1161,7 @@ h3 {
   line-height: 1.5;
 }
 .motion-layer.nope .motion-tile {
-  animation-duration: 3s;
+  animation-duration: 5s;
 }
 .motion-layer.draw .motion-tile,
 .motion-layer.future .motion-tile {
@@ -1182,8 +1182,8 @@ h3 {
     opacity: 0;
     transform: translateY(60px) rotate(-5deg) scale(0.92);
   }
-  17%,
-  90% {
+  10%,
+  94% {
     opacity: 1;
     transform: none;
   }
@@ -1197,8 +1197,8 @@ h3 {
     opacity: 0;
     transform: scale(1.15) rotate(-7deg);
   }
-  17%,
-  90% {
+  10%,
+  94% {
     opacity: 1;
     transform: none;
   }
@@ -1293,36 +1293,23 @@ h3 {
 }
 
 .nope-banner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  padding: 15px 16px 12px;
-  margin-bottom: 14px;
-  border: 1px solid #bfd8f5;
-  border-radius: 20px;
-  background: #edf5ff;
-  color: #184c86;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 56px; box-sizing: border-box; padding: 5px 10px; margin-bottom: 14px;
+  border: 1px solid #ececef; border-radius: 18px; background: #f7f7f9; color: #1d1d1f;
 }
-.nope-banner-copy h3 { margin: 0 0 5px; font-size: 17px; }
-.nope-banner-copy p { margin: 0 0 5px; font-size: 13px; color: #53687e; }
-.nope-banner-copy > strong { font-size: 13px; }
-.nope-clock { min-width: 65px; text-align: center; color: #0066cc; }
-.nope-clock-note { display: block; font-size: 11px; font-weight: 600; }
-.nope-clock > div { display: flex; align-items: baseline; justify-content: center; gap: 3px; }
-.nope-clock strong { font-size: 36px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
-.nope-clock > div > span { font-size: 12px; }
-.nope-progress { grid-column: 1 / -1; height: 4px; overflow: hidden; border-radius: 999px; background: #d7e6f7; }
-.nope-progress > span { display: block; height: 100%; background: #0071e3; border-radius: inherit; }
-.nope-banner.urgent { background: #fff2ee; border-color: #efb2a4; color: #963d2a; }
-.urgent .nope-clock { color: #b63822; }
-.urgent .nope-progress { background: #f6d8d0; }
-.urgent .nope-progress > span { background: #bf452e; }
-.nope-choices { grid-column: 1 / -1; display: flex; gap: 10px; }
-.nope-choices .nope-choice { flex: 1; width: 0; margin: 0; min-height: 44px; font-size: 14px; padding: 10px 12px; }
-.nope-hint, .nope-waiting, .nope-completed { grid-column: 1 / -1; margin: 0; font-size: 12px; line-height: 1.5; }
-.nope-hint, .nope-waiting { color: #53687e; }
-.nope-completed { font-size: 14px; font-weight: 600; }
-.nope-check { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #dcecff; color: #0066cc; font-size: 22px; }
+.nope-banner-copy { flex: 1; min-width: 0; }
+.nope-banner-copy h3 { margin: 0 0 5px; font-size: 14px; line-height: 1.2; white-space: nowrap; }
+.nope-timer-line { display: flex; align-items: center; gap: 5px; }
+.nope-progress { flex: 1; max-width: 68px; min-width: 28px; height: 4px; overflow: hidden; border-radius: 999px; background: #dce7f5; }
+.nope-progress > span { display: block; height: 100%; background: #0071e3; border-radius: inherit; transition: width .25s linear; }
+.nope-timer-text { color: #687589; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nope-choices { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.nope-choices .nope-choice { width: auto; margin: 0; min-width: 74px; min-height: 44px; padding: 6px 8px; font-size: 12px; background: #fff; border-color: #dce1e9; white-space: nowrap; }
+.nope-choices .nope-play:not(:disabled) { border-color: #a7caff; background: #f0f6ff; }
+.nope-choices .nope-choice:disabled { opacity: 1; color: #a1a1aa; background: #f1f1f4; border-color: #e3e3e8; cursor: default; }
+.nope-banner.urgent .nope-timer-text { color: #b63822; }
+.nope-banner.urgent .nope-progress { background: #f6d8d0; }
+.nope-banner.urgent .nope-progress > span { background: #bf452e; }
 /* Six-player expansion uses the approved light table and action-blue controls. */
 .card-symbol {
   position: absolute;
@@ -1368,3 +1355,17 @@ h3 {
 .card-state.face-up { border-color: #e8c2b9; background: #fff5f2; color: #8e3828; }
 .hero-count { position: absolute; left: 4.5%; top: 22%; width: 30%; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: #fff0cf; color: #5b493a; font-size: clamp(18px, 6vw, 24px); font-weight: 600; line-height: 1.2; }
 .hero-rules-note { margin: -12px 0 20px; color: #637080; font-size: 12px; line-height: 1.5; text-align: center; }
+
+/* Approved v3: five-second actions stay centered on the shared table. */
+#motion-host { position: fixed; pointer-events: none; z-index: 9; }
+#motion-host .motion-layer { position: absolute; }
+.motion-tile { width: 250px; max-width: 76%; box-sizing: border-box; padding: 12px 14px; }
+.motion-people { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 5px; color: #0066cc; font-size: 25px; }
+.motion-people .avatar { width: 36px; height: 36px; flex-shrink: 0; }
+.motion-relationship { font-size: 23px; font-weight: 700; line-height: 1.2; overflow-wrap: anywhere; }
+.motion-action { font-size: 22px; font-weight: 600; line-height: 1.25; color: #0066cc; margin: 3px 0 8px; overflow-wrap: anywhere; }
+.motion-tile .card { width: 132px; margin: 0 auto; }
+.motion-tile .card strong { font-size: 16px; margin-top: 5px; }
+.motion-tile .card small { font-size: 11px; }
+.motion-count { top: 4px; right: 5px; font-size: 11px; padding: 2px 5px; }
+.reduced .nope-progress > span { transition: none; }
