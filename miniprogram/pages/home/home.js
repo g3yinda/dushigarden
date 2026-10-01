@@ -33,10 +33,14 @@ Page({
     countdown: 0,
     settings: { reduced: false, sound: false },
   },
+  updateData(update) {
+    const patch = U.dataPatch(this.data, update);
+    if (Object.keys(patch).length) this.setData(patch);
+  },
   onLoad(options) {
     this.token = wx.getStorageSync("boom.token");
     let avatar = Number(wx.getStorageSync("boom.avatar") || 0);
-    this.setData({
+    this.updateData({
       name: wx.getStorageSync("boom.name") || "",
       avatar,
       avatarStyle: U.avatars[avatar].style,
@@ -122,12 +126,12 @@ Page({
         }
       }
       if (this.invite && !this.data.room)
-        this.setData({ modal: "join", code: this.invite });
+        this.updateData({ modal: "join", code: this.invite });
     } catch (e) {
       if (e.status === 401) {
         this.token = null;
         wx.removeStorageSync("boom.token");
-      } else this.setData({ connection: e.message });
+      } else this.updateData({ connection: e.message });
     }
   },
   async session() {
@@ -165,7 +169,7 @@ Page({
       this.pollRequest?.abort();
       this.motionPlayer?.clear();
       this.handScroll = 0;
-      this.setData({
+      this.updateData({
         room: null, v: {}, selected: [], modal: "", target: "",
         connection: "", canResume: false, handExpanded: false, handScroll: 0,
         nopeInfo: null, futureState: null,
@@ -179,7 +183,7 @@ Page({
           wx.pageScrollTo?.({ scrollTop: 0, duration: this.data.settings.reduced ? 0 : 200 });
         // Key each effect so consecutive plays mount a fresh CSS animation node.
         this.motionSequence = (this.motionSequence || 0) + 1;
-        this.setData({
+        this.updateData({
           motion,
           motionItems: motion
             ? [{ ...motion, renderId: this.motionSequence }]
@@ -197,7 +201,7 @@ Page({
     const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
     const named = v.namedOptions.some(c => c.value === this.data.named) ? this.data.named : "defuse";
-    this.setData({
+    this.updateData({
       room: r,
       selected,
       futureState: U.futureOrder(r, this.data.futureState),
@@ -233,13 +237,13 @@ Page({
   },
   tick() {
     const nopeInfo = U.nopePanel(this.data.room, Date.now() + (this.offset || 0));
-    this.setData({ nopeInfo });
+    this.updateData({ nopeInfo });
     let deadline = this.data.room?.game?.deadline;
     if (!deadline) {
-      this.setData({ countdown: null });
+      this.updateData({ countdown: null });
       return;
     }
-    this.setData({
+    this.updateData({
       countdown: Math.max(
         0,
         Math.ceil((deadline - Date.now() - (this.offset || 0)) / 1000),
@@ -266,7 +270,7 @@ Page({
         );
         if (epoch !== this.epoch) return;
         if (r && r.revision !== this.data.room.revision) this.accept(r);
-        else if (this.data.connection) this.setData({ connection: "" });
+        else if (this.data.connection) this.updateData({ connection: "" });
       } catch (e) {
         if (epoch !== this.epoch) return;
         if ([401, 403, 404, 410].includes(e.status)) {
@@ -277,7 +281,7 @@ Page({
             wx.removeStorageSync("boom.token");
           }
           this.handScroll = 0;
-          this.setData({
+          this.updateData({
             room: null, modal: "", v: {}, selected: [], target: "",
             canResume: false, handExpanded: false, handScroll: 0, connection: "",
             nopeInfo: null, futureState: null,
@@ -285,7 +289,7 @@ Page({
           this.notice(e.message);
           return;
         }
-        this.setData({ connection: "连接中断，正在重连…" });
+        this.updateData({ connection: "连接中断，正在重连…" });
         await new Promise((r) => setTimeout(r, 1800));
       }
     }
@@ -295,7 +299,7 @@ Page({
   },
   async command(type, payload = {}) {
     if (this.data.busy || !this.data.room) return;
-    this.setData({ busy: true });
+    this.updateData({ busy: true });
     if (["leave", "closeRoom"].includes(type)) {
       this.epoch = (this.epoch || 0) + 1;
       if (this.pollRequest) this.pollRequest.abort();
@@ -314,7 +318,7 @@ Page({
       );
       if (type === "leave") {
         this.motionPlayer?.clear();
-        this.setData({
+        this.updateData({
           room: null,
           v: {},
           selected: [],
@@ -324,36 +328,35 @@ Page({
         });
         return;
       }
-      this.setData({ selected: [], modal: "" });
+      this.updateData({ selected: [], modal: "" });
       this.accept(r);
     } catch (e) {
       if (e.status === 409) {
         await this.refresh();
-        this.notice("局面已变化，请查看最新状态后再操作");
       } else this.notice(e.message);
     } finally {
-      this.setData({ busy: false });
+      this.updateData({ busy: false });
       if (["leave", "closeRoom"].includes(type) && this.data.room && this.visible) this.poll();
     }
   },
   input(e) {
-    this.setData({ [e.currentTarget.dataset.field]: e.detail.value });
+    this.updateData({ [e.currentTarget.dataset.field]: e.detail.value });
   },
   roomSetting(e) {
-    this.setData({ noTurnTimer: e.detail.value });
+    this.updateData({ noTurnTimer: e.detail.value });
   },
   handScrolled(e) {
     this.handScroll = e.detail.scrollLeft;
   },
   chooseBotCount(e) {
     const index = Number(e.detail.value);
-    this.setData({
+    this.updateData({
       botCountIndex: index,
       botCount: this.data.v.botCounts[index] || 1,
     });
   },
   botSetting(e) {
-    this.setData({ respondNope: e.detail.value });
+    this.updateData({ respondNope: e.detail.value });
   },
   async addBots() {
     const v = U.derive(this.data.room, [], this.data.localMode);
@@ -363,7 +366,7 @@ Page({
       !v.botCounts.includes(this.data.botCount)
     )
       return;
-    this.setData({ busy: true });
+    this.updateData({ busy: true });
     try {
       const r = await this.request("/rooms/" + this.data.room.code + "/bots", {
         count: this.data.botCount,
@@ -372,7 +375,7 @@ Page({
         commandId:
           Date.now().toString(36) + "-" + Math.random().toString(36).slice(2),
       });
-      this.setData({ modal: "" });
+      this.updateData({ modal: "" });
       this.accept(r);
     } catch (e) {
       if (e.status === 409) {
@@ -380,23 +383,23 @@ Page({
         this.notice("房间人数或状态已变化，请查看最新房间后再添加 Bot");
       } else this.notice(e.message);
     } finally {
-      this.setData({ busy: false });
+      this.updateData({ busy: false });
     }
   },
   choosePosition(e) {
     const idx = Number(e.detail.value);
-    this.setData({ positionIndex: idx, position: idx + 1 });
+    this.updateData({ positionIndex: idx, position: idx + 1 });
   },
   chooseNamed(e) {
     const idx = Number(e.detail.value);
-    if (this.data.namedOptions[idx]) this.setData({ namedIndex: idx, named: this.data.namedOptions[idx].value });
+    if (this.data.namedOptions[idx]) this.updateData({ namedIndex: idx, named: this.data.namedOptions[idx].value });
   },
   setting(e) {
     const settings = {
       ...this.data.settings,
       [e.currentTarget.dataset.field]: e.detail.value,
     };
-    this.setData({ settings });
+    this.updateData({ settings });
     wx.setStorageSync("boom.settings", settings);
   },
   async action(e) {
@@ -416,11 +419,11 @@ Page({
       }
       if (a === "nope-time") {
         const seconds = Number(e.currentTarget.dataset.seconds);
-        if (this.data.nopeTimes.includes(seconds)) this.setData({ nopeSeconds: seconds });
+        if (this.data.nopeTimes.includes(seconds)) this.updateData({ nopeSeconds: seconds });
         return;
       }
       if (a === "close-room") {
-        if (U.derive(this.data.room, this.data.selected).isHost) this.setData({ modal: "close-room" });
+        if (U.derive(this.data.room, this.data.selected).isHost) this.updateData({ modal: "close-room" });
         return;
       }
       if (a === "close-room-submit") {
@@ -429,17 +432,17 @@ Page({
       }
       if (a === "hand-toggle") {
         this.handScroll = 0;
-        this.setData({ handExpanded: !this.data.handExpanded, handScroll: 0 });
+        this.updateData({ handExpanded: !this.data.handExpanded, handScroll: 0 });
         return;
       }
       if (a === "create") {
-        this.setData({ modal: "create", noTurnTimer: false, nopeSeconds: 10 });
+        this.updateData({ modal: "create", noTurnTimer: false, nopeSeconds: 10 });
         return;
       }
       if (a === "bots") {
         if (!U.derive(this.data.room, [], this.data.localMode).canAddBots)
           return;
-        this.setData({
+        this.updateData({
           modal: "bots",
           botCount: 1,
           botCountIndex: 0,
@@ -451,15 +454,15 @@ Page({
       if (
         ["settings", "rules", "profile", "join", "leave", "detail"].includes(a)
       ) {
-        this.setData({ modal: a });
+        this.updateData({ modal: a });
         return;
       }
       if (a === "close") {
-        this.setData({ modal: "" });
+        this.updateData({ modal: "" });
         return;
       }
       if (a === "avatar") {
-        this.setData({
+        this.updateData({
           avatar: Number(id),
           avatarStyle: U.avatars[Number(id)].style,
           modal: "",
@@ -467,7 +470,7 @@ Page({
         return;
       }
       if (a === "create-submit" || a === "join-submit") {
-        this.setData({ busy: true });
+        this.updateData({ busy: true });
         await this.session();
         const r = await this.request(
           a === "create-submit" ? "/rooms" : "/rooms/join",
@@ -475,14 +478,14 @@ Page({
             ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds }
             : { code: this.data.code },
         );
-        this.setData({ modal: "" });
+        this.updateData({ modal: "" });
         this.accept(r);
         this.poll();
         return;
       }
       if (a === "resume") {
         const r = await this.request("/rooms/current");
-        this.setData({ canResume: false });
+        this.updateData({ canResume: false });
         if (r) {
           this.accept(r);
           this.poll();
@@ -497,14 +500,14 @@ Page({
         let selected = this.data.selected.includes(id)
           ? this.data.selected.filter((x) => x !== id)
           : [...this.data.selected, id];
-        this.setData({
+        this.updateData({
           selected,
           v: U.derive(this.data.room, selected, this.data.localMode),
         });
         return;
       }
       if (a === "clear") {
-        this.setData({
+        this.updateData({
           selected: [],
           v: U.derive(this.data.room, [], this.data.localMode),
         });
@@ -512,12 +515,12 @@ Page({
       }
       if (a === "prepare") {
         if (!U.selection(this.data.room, this.data.selected).valid) return;
-        this.setData({ target: "", modal: "play" });
+        this.updateData({ target: "", modal: "play" });
         return;
       }
       if (a === "target") {
         if (!U.derive(this.data.room, this.data.selected).targets.some(p => p.id === id)) return;
-        this.setData({ target: id });
+        this.updateData({ target: id });
         return;
       }
       if (a === "play") {
@@ -532,12 +535,12 @@ Page({
       if (a === "ready")
         return await this.command("ready", { ready: !this.data.v.ready });
       if (a === "future-up" || a === "future-down") {
-        this.setData({ futureState: U.moveFuture(this.data.room, this.data.futureState, id, a === "future-up" ? -1 : 1) });
+        this.updateData({ futureState: U.moveFuture(this.data.room, this.data.futureState, id, a === "future-up" ? -1 : 1) });
         return;
       }
       if (a === "orderFuture") {
         const state = U.futureOrder(this.data.room, this.data.futureState);
-        this.setData({ futureState: state });
+        this.updateData({ futureState: state });
         if (state?.canConfirm) return await this.command("orderFuture", { order: [...state.order] });
         return;
       }
@@ -563,7 +566,7 @@ Page({
     } catch (e) {
       this.notice(e.message || "操作失败，请稍后再试");
     } finally {
-      this.setData({ busy: false });
+      this.updateData({ busy: false });
     }
   },
 });

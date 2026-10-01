@@ -211,7 +211,7 @@ function nativeHarness(schedule = () => 1, configOverrides = {}, wxApi = {}) {
       clearTimeout() {},
     },
   );
-  page.setData = (update) => Object.assign(page.data, update);
+  page.setData = (update) => require("./native-data").applyData(page.data, update);
   page.accept(waitingRoom());
   page.notices = [];
   page.notice = (message) => page.notices.push(message);
@@ -976,4 +976,49 @@ test("native 常驻抽牌操作不能从非本人回合、否定或旁观态提�
     await page.action({currentTarget:{dataset:{action:"draw"}}});
     assert.equal(calls.length, 0, state);
   }
+});
+
+test("native 选牌只更新手牌状态，不重新下发玩家头像数据", async () => {
+  const page = nativeHarness(); page.accept(structuredClone(room));
+  const updates = [], apply = page.setData;
+  page.setData = patch => { updates.push(patch); apply(patch); };
+  await page.action({currentTarget:{dataset:{action:"card",id:"1"}}});
+  assert.equal(page.data.v.hand[0].selected, true);
+  assert(updates.length > 0);
+  assert(updates.every(patch => Object.keys(patch).every(key => key !== "v" && !/^v\.(players|tablePlayers)/.test(key))));
+  assert(!updates.some(patch => Object.hasOwn(patch, "avatarStyle")));
+});
+
+test("native 状态冲突只刷新局面，不弹提示、不自动重放操作", async () => {
+  const page = nativeHarness(); page.accept(structuredClone(room));
+  let requests = 0, refreshes = 0;
+  page.request = async () => { requests++; throw Object.assign(Error("局面已变化"),{status:409}); };
+  page.refresh = async () => { refreshes++; const next=structuredClone(room);next.game.current="b";page.accept(next); };
+  await page.command("draw");
+  assert.equal(requests,1); assert.equal(refreshes,1);
+  assert.equal(page.data.v.canDraw,false); assert.equal(page.data.busy,false);
+  assert.deepEqual(page.notices,[]);
+});
+
+test("browser 状态冲突静默刷新，网络错误仍提示，不重放旧命令", async () => {
+  const h = await browserHarness("local");
+  const r={...structuredClone(room),code:"123456",serverNow:Date.now()};await receiveNope(h,r);
+  let commands=0,reads=0;
+  h.context.fetch=async(url)=>{if(url.endsWith("/command")){commands++;return{ok:false,status:409,json:async()=>({message:"局面已变化"})};}reads++;const next=structuredClone(r);next.game.current="b";return{ok:true,json:async()=>next};};
+  await vm.runInContext('cmd("draw")',h.context);
+  assert.equal(commands,1);assert.equal(reads,1);assert.equal(h.state.room.game.current,"b");
+  assert.equal(h.nodes["#toast"].textContent,undefined);
+  h.context.fetch=async()=>{throw Error("连接失败")};
+  await vm.runInContext('cmd("draw")',h.context);
+  assert.equal(h.nodes["#toast"].textContent,"连接失败");
+});
+
+test("native 差量同步仅更新变化的玩家牌数，增减玩家仍完整同步", () => {
+  const before={v:{tablePlayers:[{id:"a",avatarStyle:"same",count:8},{id:"b",avatarStyle:"same",count:8}]}};
+  const after=structuredClone(before);after.v.tablePlayers[1].count=7;
+  assert.deepEqual(ui.dataPatch(before,after),{"v.tablePlayers[1].count":7});
+  assert.deepEqual(ui.dataPatch(before,structuredClone(before)),{});
+  after.v.tablePlayers.reverse();assert.deepEqual(ui.dataPatch(before,after),{"v.tablePlayers":after.v.tablePlayers});
+  after.v.tablePlayers.pop();assert.deepEqual(ui.dataPatch(before,after),{"v.tablePlayers":after.v.tablePlayers});
+  assert.deepEqual(ui.dataPatch(before,{v:{}}),{v:{}});
 });

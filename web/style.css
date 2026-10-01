@@ -212,11 +212,13 @@ h3 {
 }
 .seats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin: 16px 0;
 }
 .seat {
+  min-width: 0;
+  overflow-wrap: anywhere;
   position: relative;
   display: flex;
   align-items: center;

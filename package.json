@@ -1,6 +1,6 @@
 {
   "name": "boomcat-friends",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "朋友局 · 2–6 人炸弹猫微信小程序",
   "engines": {

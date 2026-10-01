@@ -14,7 +14,7 @@ function native() {
   vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/home/home.js'),'utf8'), {
     require:name=>name.includes('controller')?U:{localMode:true},Page:p=>page=p,wx:{},setTimeout:()=>1,clearTimeout(){},
   });
-  page.setData=update=>Object.assign(page.data,update); page.notice=()=>{};
+  page.setData=update=>require("./native-data").applyData(page.data,update); page.notice=()=>{};
   return {state:page.data,accept:r=>page.accept(r),click:(action,data={})=>page.action({currentTarget:{dataset:{action,...data}}}),page};
 }
 async function browser() {

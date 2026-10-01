@@ -501,7 +501,32 @@
       },
     };
   }
+  // Minimal wx.setData paths keep unchanged image bindings out of the bridge.
+  function dataPatch(previous, update) {
+    const patch = {};
+    function visit(before, after, path) {
+      if (JSON.stringify(before) === JSON.stringify(after)) return;
+      if (!before || !after || typeof before !== "object" || typeof after !== "object" || Array.isArray(before) !== Array.isArray(after)) {
+        patch[path] = after;
+        return;
+      }
+      if (Array.isArray(after)) {
+        if (before.length !== after.length || after.some((item, i) => (item?.id ?? item?.renderId) !== (before[i]?.id ?? before[i]?.renderId))) patch[path] = after;
+        else after.forEach((item, i) => visit(before[i], item, `${path}[${i}]`));
+        return;
+      }
+      const keys = Object.keys(after);
+      if (Object.keys(before).some(key => !Object.prototype.hasOwnProperty.call(after, key)) || keys.some(key => !/^[A-Za-z_$][\w$]*$/.test(key))) {
+        patch[path] = after;
+        return;
+      }
+      keys.forEach(key => visit(before[key], after[key], `${path}.${key}`));
+    }
+    Object.keys(update).forEach(key => visit(previous[key], update[key], key));
+    return patch;
+  }
   return {
+    dataPatch,
     names,
     card,
     namedOptions,
