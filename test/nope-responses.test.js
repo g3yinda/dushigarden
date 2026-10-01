@@ -27,11 +27,9 @@ test('本层不出由服务器保存且不能撤回或重复选择，不消耗�
   assert.equal(E.project(g,'b').pending.responses.b,'passed');
   E.assertInvariant(g);
 });
-test('所有存活玩家含无否定牌者确认后立即结算，无需等截止', () => {
+test('所有持否定玩家确认后立即结算，无牌者自动完成', () => {
   let g = game(), deadline = g.deadline;
   g = pass(g,'a'); g = pass(g,'b');
-  assert.equal(g.phase,'nope');
-  g = pass(g,'c');
   assert.equal(g.phase,'action');
   assert.equal(g.current,'b');
   assert.equal(g.remaining,2);
@@ -41,15 +39,14 @@ test('所有存活玩家含无否定牌者确认后立即结算，无需等截�
 test('否定新层清除旧层放弃；出牌者完成响应；全员确认按奇偶结算', () => {
   let g = pass(game(),'a');
   g = E.command(g,'b',{type:'nope',nopeCount:0,cardId:g.players[1].hand[0].id},opts);
-  assert.deepEqual(g.pending.responses,{a:'waiting',b:'played',c:'waiting'});
+  assert.deepEqual(g.pending.responses,{a:'waiting',b:'played',c:'passed'});
   assert.throws(()=>pass(g,'a',0),/窗口已变化/);
   g = E.command(g,'a',{type:'nope',nopeCount:1,cardId:g.players[0].hand[0].id},opts);
-  assert.deepEqual(g.pending.responses,{a:'played',b:'waiting',c:'waiting'});
-  g = pass(g,'b'); g = pass(g,'c');
+  assert.equal(g.pending,null);
   assert.equal(g.current,'b'); assert.equal(g.remaining,2);
   let canceled = game();
   canceled = E.command(canceled,'b',{type:'nope',cardId:canceled.players[1].hand[0].id},opts);
-  canceled = pass(canceled,'a'); canceled = pass(canceled,'c');
+  canceled = pass(canceled,'a');
   assert.equal(canceled.current,'a'); assert.equal(canceled.pending,null);
   E.assertInvariant(g); E.assertInvariant(canceled);
 });
@@ -58,7 +55,7 @@ test('迟到不出被拒绝，到期自动结算；旧快照响应表缺失兼�
   assert.throws(()=>E.command(g,'b',{type:'passNope',nopeCount:0},{...opts,now:g.deadline}),e=>e.code==='STALE');
   assert.equal(E.tick(pass(g,'a'),{...opts,now:g.deadline}).phase,'action');
   delete g.pending.responses;
-  assert.deepEqual(E.project(g,'a').pending.responses,{a:'waiting',b:'waiting',c:'waiting'});
+  assert.deepEqual(E.project(g,'a').pending.responses,{a:'waiting',b:'waiting',c:'passed'});
   assert.equal(pass(g,'a').pending.responses.a,'passed');
 });
 test('服务端不出幂等、刷新/快照恢复仍锁定；全员确认发出版本更新', () => {
@@ -80,7 +77,8 @@ test('服务端不出幂等、刷新/快照恢复仍锁定；全员确认发出�
     const all=[...g.deck,...g.players.flatMap(p=>p.hand)];
     const attack=all.splice(all.findIndex(c=>c.type==='attack'),1)[0];
     const nope=all.splice(all.findIndex(c=>c.type==='nope'),1)[0];
-    g.players[0].hand=[attack]; g.players[1].hand=[nope]; g.deck=all; g.current=a;
+    const ownNope=all.splice(all.findIndex(c=>c.type==='nope'),1)[0];
+    g.players[0].hand=[attack,ownNope]; g.players[1].hand=[nope]; g.deck=all; g.current=a;
     move(s,a,'play',{cards:[attack.id]});
     const v=s.view(b,r.code);
     const payload={type:'passNope',nopeCount:0,revision:v.revision,gameId:v.game.id,commandId:'pass-once'};
@@ -110,10 +108,11 @@ test('四个 Bot 不出均确认，别人的确认不会重置 Bot 思考时间�
   const g=s.rooms[r.code].game;
   const all=[...g.deck,...g.players.flatMap(p=>p.hand)];
   const attack=all.splice(all.findIndex(c=>c.type==='attack'),1)[0];
-  g.players.forEach(p=>p.hand=[]); g.players[0].hand=[attack]; g.deck=all; g.current=host;
+  g.players.forEach(p=>p.hand=[]); g.players[0].hand=[attack];
+  for(const p of g.players.slice(1))p.hand=[all.splice(all.findIndex(c=>c.type==='nope'),1)[0]];g.deck=all; g.current=host;
   move('play',{cards:[attack.id]});
   const runner=new BotRunner(s,{now:()=>now,rng:()=>.5});
-  runner.step(); move('passNope',{nopeCount:0});
+  runner.step();
   for (let i=0;i<4;i++) {now=2500+i*100; runner.step();}
   assert.equal(s.view(host,r.code).game.phase,'action');
   assert(now < 6000); E.assertInvariant(s.rooms[r.code].game);

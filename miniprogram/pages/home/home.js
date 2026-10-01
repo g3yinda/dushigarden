@@ -414,8 +414,8 @@ Page({
           this.notice("响应窗口已变化，请查看当前提示");
           return;
         }
-        if (a === "nope-pass") return await this.command("passNope", { nopeCount: response.nopeCount });
-        return await this.command("nope", { cardId: response.cardId, nopeCount: response.nopeCount });
+        if (a === "nope-pass") return await this.command("passNope", { nopeCount: response.nopeCount, nopeWindow: response.key });
+        return await this.command("nope", { cardId: response.cardId, nopeCount: response.nopeCount, nopeWindow: response.key });
       }
       if (a === "nope-time") {
         const seconds = Number(e.currentTarget.dataset.seconds);

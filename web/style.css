@@ -1306,7 +1306,7 @@ h3 {
 .nope-progress > span { display: block; height: 100%; background: #0071e3; border-radius: inherit; transition: width .25s linear; }
 .nope-timer-text { color: #687589; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nope-choices { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-.nope-choices .nope-choice { width: auto; margin: 0; min-width: 74px; min-height: 44px; padding: 6px 8px; font-size: 12px; background: #fff; border-color: #dce1e9; white-space: nowrap; }
+.nope-choices .nope-choice { display: flex; align-items: center; justify-content: center; text-align: center; width: auto; margin: 0; min-width: 74px; min-height: 44px; padding: 6px 8px; font-family: "Yuanti SC", "Hiragino Maru Gothic ProN", "PingFang SC", sans-serif; font-size: 13px; font-weight: 600; line-height: 1.25; background: #fff; border-color: #dce1e9; white-space: nowrap; }
 .nope-choices .nope-play:not(:disabled) { border-color: #a7caff; background: #f0f6ff; }
 .nope-choices .nope-choice:disabled { opacity: 1; color: #a1a1aa; background: #f1f1f4; border-color: #e3e3e8; cursor: default; }
 .nope-banner.urgent .nope-timer-text { color: #b63822; }

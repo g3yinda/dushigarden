@@ -50,16 +50,26 @@ function phase(g, name, now) {
       ? null
       : now + duration;
 }
-function responses(g) {
-  return g.pending.responses ||= Object.fromEntries(
-    g.players.filter(p => p.alive).map(p => [p.id, "waiting"]),
-  );
+function responseState(g) {
+  return Object.fromEntries(g.players.filter(p => p.alive).map(p => {
+    const status = g.pending.responses?.[p.id];
+    return [p.id, status && status !== "waiting" ? status
+      : p.hand.some(c => c.type === "nope") ? "waiting" : "passed"];
+  }));
 }
-function openNope(g, now, playedBy = null) {
+function responses(g) { return g.pending.responses = responseState(g); }
+function nopeWindow(g, code) {
+  const p = g?.pending;
+  return g?.phase === "nope" && p
+    ? JSON.stringify([code, g.id, p.actor, p.type, p.nopeCount, g.deadline, p.actionId ?? null]) : null;
+}
+function openNope(g, now, rng, playedBy = null) {
   g.pending.responses = Object.fromEntries(
-    g.players.filter(p => p.alive).map(p => [p.id, p.id === playedBy ? "played" : "waiting"]),
+    g.players.filter(p => p.alive).map(p => [p.id, p.id === playedBy ? "played"
+      : p.hand.some(c => c.type === "nope") ? "waiting" : "passed"]),
   );
   phase(g, "nope", now);
+  if (!Object.values(g.pending.responses).includes("waiting")) resolve(g, now, rng);
 }
 function checkResponse(g, id, a) {
   if (g.phase !== "nope") fail("现在没有可否定的动作");
@@ -280,7 +290,7 @@ function resolve(g, now, rng) {
     resume(g, now);
   }
 }
-function play(g, id, a, now) {
+function play(g, id, a, now, rng) {
   const p = player(g, id);
   if (
     !Array.isArray(a.cards) ||
@@ -344,7 +354,8 @@ function play(g, id, a, now) {
       cards: cards.map((c) => ({ id: c.id, type: c.type })),
     },
   );
-  openNope(g, now);
+  g.pending.actionId = g.eventId;
+  openNope(g, now, rng);
 }
 function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   const g = clone(state);
@@ -370,7 +381,7 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
         nopeCount: g.pending.nopeCount,
       },
     );
-    openNope(g, now, id);
+    openNope(g, now, rng, id);
   } else if (a.type === "passNope") {
     if (!Number.isInteger(a.nopeCount)) fail("请选择当前否定窗口");
     checkResponse(g, id, a);
@@ -385,7 +396,7 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
     if (id !== g.current) fail("还没有轮到你");
     if (g.phase === "action") {
       if (a.type === "draw") draw(g, now);
-      else if (a.type === "play") play(g, id, a, now);
+      else if (a.type === "play") play(g, id, a, now, rng);
       else fail("此阶段不支持该操作");
     } else if (g.phase === "defuse" && a.type === "defuse") defuse(g, now);
     else if (g.phase === "insert" && a.type === "insert")
@@ -406,6 +417,14 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
   return g;
 }
 function tick(state, { now = Date.now(), rng = random } = {}) {
+  if (state.phase === "nope") {
+    const g = clone(state);
+    if (!Object.values(responses(g)).includes("waiting")) {
+      resolve(g, now, rng);
+      g.version++;
+      return g;
+    }
+  }
   if (
     state.phase === "finished" ||
     state.deadline === null ||
@@ -475,7 +494,7 @@ function project(g, id) {
     deckBottom: g.deck.at(-1)?.type === "imploding" && g.deck.at(-1).faceUp ? clone(g.deck.at(-1)) : null,
     discard: clone(g.discard),
     pending: g.phase === "nope"
-      ? { ...clone(g.pending), responses: clone(g.pending.responses || Object.fromEntries(g.players.filter(p => p.alive).map(p => [p.id, "waiting"]))) }
+      ? { ...clone(g.pending), responses: responseState(g) }
       : clone(g.pending),
     winner: g.winner,
     logs: clone(g.logs),
@@ -514,4 +533,5 @@ module.exports = {
   assertInvariant,
   GameError,
   RULES,
+  nopeWindow,
 };

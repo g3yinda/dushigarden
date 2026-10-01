@@ -39,6 +39,7 @@ for (const nopeSeconds of [15, 10, 5]) {
     };
     g.current = "a";
     const attack = hand("a", "attack"), n1 = hand("b", "nope"), n2 = hand("a", "nope");
+    hand("b", "nope");
     g = E.command(g, "a", { type: "play", cards: [attack] }, { now: 2000 });
     assert.equal(g.deadline, 2000 + nopeSeconds * 1000);
     g = E.command(g, "b", { type: "nope", cardId: n1 }, { now: 3000 });

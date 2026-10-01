@@ -24,6 +24,7 @@ function arrange(g, hands, deck = ["skip", "bomb", "bomb"]) {
 function act(g, p, type, extra = {}) {
   return E.command(g, p, { type, ...extra }, opts);
 }
+function resolvePlay(g) { return g.phase === "nope" ? settle(g) : g; }
 function settle(g) {
   return E.tick(g, { ...opts, now: g.deadline });
 }
@@ -63,13 +64,13 @@ for (const n of [2, 3, 4, 5, 6])
   });
 test("攻击转移剩余负债并加二，跳过只减一", () => {
   let g = arrange(game(), [["attack"], ["skip", "attack"], ["skip"]]);
-  g = settle(act(g, "p0", "play", { cards: ["c0"] }));
+  g = resolvePlay(act(g, "p0", "play", { cards: ["c0"] }));
   assert.equal(g.current, "p1");
   assert.equal(g.remaining, 2);
-  g = settle(act(g, "p1", "play", { cards: ["c1"] }));
+  g = resolvePlay(act(g, "p1", "play", { cards: ["c1"] }));
   assert.equal(g.remaining, 1);
   assert.equal(g.attacked, true);
-  g = settle(act(g, "p1", "play", { cards: ["c2"] }));
+  g = resolvePlay(act(g, "p1", "play", { cards: ["c2"] }));
   assert.equal(g.remaining, 3);
   assert.equal(g.current, "p2");
 });
@@ -82,7 +83,7 @@ test("否定链奇数取消偶数恢复且牌不退回", () => {
   assert.equal(canceled.current, "p0");
   assert.equal(canceled.discard.length, 2);
   g = act(g, "p0", "nope", { cardId: "c1" });
-  g = settle(g);
+  g = resolvePlay(g);
   assert.equal(g.current, "p1");
   assert.equal(g.remaining, 2);
   assert.equal(g.discard.length, 3);
@@ -104,8 +105,8 @@ test("拆弹只能在炸弹阶段，位置保密且余债继续", () => {
   assert(!JSON.stringify(E.project(g, "p1")).includes("position"));
 });
 test("预知只给本人，不能改序，看完仍须行动", () => {
-  let g = arrange(game(), [["future"], [], []]);
-  g = settle(act(g, "p0", "play", { cards: ["c0"] }));
+  let g = arrange(game(), [["future"], ["nope"], []]);
+  g = resolvePlay(act(g, "p0", "play", { cards: ["c0"] }));
   assert.equal(E.project(g, "p0").future.length, 3);
   assert(!("future" in E.project(g, "p1")));
   const ids = g.deck.map((c) => c.id);
@@ -119,7 +120,7 @@ test("预知只给本人，不能改序，看完仍须行动", () => {
 });
 test("索要由目标选牌，转牌不向第三人泄露", () => {
   let g = arrange(game(), [["favor"], ["skip", "defuse"], []]);
-  g = settle(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
+  g = resolvePlay(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
   assert.equal(g.phase, "favor");
   assert.throws(() => act(g, "p0", "give", { cardId: "c2" }));
   g = act(g, "p1", "give", { cardId: "c2" });
@@ -131,11 +132,11 @@ test("索要由目标选牌，转牌不向第三人泄露", () => {
 });
 test("任意同名对子忽略原效果，三张失败照样消耗", () => {
   let g = arrange(game(), [["attack", "attack"], ["defuse"], []]);
-  g = settle(act(g, "p0", "play", { cards: ["c0", "c1"], target: "p1" }));
+  g = resolvePlay(act(g, "p0", "play", { cards: ["c0", "c1"], target: "p1" }));
   assert.equal(g.current, "p0");
   assert.equal(g.players[0].hand[0].type, "defuse");
   g = arrange(game(), [["nope", "nope", "nope"], ["skip"], []]);
-  g = settle(
+  g = resolvePlay(
     act(g, "p0", "play", {
       cards: ["c0", "c1", "c2"],
       target: "p1",
@@ -167,7 +168,7 @@ test("出局封存手牌，最后存活者获胜", () => {
   assert.equal(g.discard.length, 0);
 });
 test("行动预算经过非结束回合牌不会重置", () => {
-  let g = arrange(game(), [["shuffle"], [], []]);
+  let g = arrange(game(), [["shuffle"], ["nope"], []]);
   g = E.command(
     g,
     "p0",
@@ -212,14 +213,12 @@ for (const noTurnTimer of [false, true])
     g = E.command(g, "p1", { type: "nope", cardId: "c2" }, { now: 2000 });
     deadline(g, "nope", 2000);
     g = E.command(g, "p0", { type: "nope", cardId: "c1" }, { now: 3000 });
-    deadline(g, "nope", 3000);
-    g = settle(g);
-    deadline(g, "future", 3000 + E.RULES.nope);
+    deadline(g, "future", 3000);
     g = act(g, "p0", "closeFuture");
     deadline(g, "action");
     g = arrange(game(3, { noTurnTimer }), [["favor"], ["skip"], []]);
-    g = settle(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
-    deadline(g, "favor", 1000 + E.RULES.nope);
+    g = resolvePlay(act(g, "p0", "play", { cards: ["c0"], target: "p1" }));
+    deadline(g, "favor", 1000);
     g = act(g, "p1", "give", { cardId: "c1" });
     deadline(g, "action");
     g = arrange(
@@ -235,7 +234,7 @@ for (const noTurnTimer of [false, true])
     deadline(g, "action");
   });
 test("null deadline 永不自动推进且玩家仍可在任意时间操作", () => {
-  let g = arrange(game(3, { noTurnTimer: true }), [["future"], [], []]);
+  let g = arrange(game(3, { noTurnTimer: true }), [["future"], ["nope"], []]);
   assert.equal(E.tick(g, { now: 1000000 }), g);
   g = E.command(g, "p0", { type: "play", cards: ["c0"] }, { now: 1000000 });
   assert.equal(g.deadline, 1000000 + E.RULES.nope);

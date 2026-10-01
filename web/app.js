@@ -305,7 +305,7 @@ function phase(r, v) {
 function nopeBar() {
   const info = S.nopeInfo;
   const description = info?.active ? `${info.actorName} · ${info.actionName}；${info.stateText}；${info.statusText || "选择不出后，本轮不能更改"}；等待 ${info.waiting} 位玩家` : "当前没有可响应的动作";
-  return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel title="${esc(description)}" aria-label="${esc(description)}"><div class="nope-banner-copy"><h3>是否选择否定？</h3><div class="nope-timer-line"><div class="nope-progress" aria-hidden="true"><span data-nope-progress style="width:${info?.progress || 0}%"></span></div><span class="nope-timer-text" data-nope-timer>${esc(info?.timerText || "暂无响应")}</span></div></div><div class="nope-choices">${btn(esc(info?.buttonText || "打出否定"), "nope-response", "secondary nope-choice nope-play", !info?.canNope, `data-window="${esc(info?.key)}"`)}${btn("本次不出", "nope-pass", "secondary nope-choice", !info?.canPass, `data-window="${esc(info?.key)}"`)}</div></div>`;
+  return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel title="${esc(description)}" aria-label="${esc(description)}"><div class="nope-banner-copy"><h3>是否选择否定？</h3><div class="nope-timer-line"><div class="nope-progress" aria-hidden="true"><span data-nope-progress style="width:${info?.progress || 0}%"></span></div><span class="nope-timer-text" data-nope-timer>${esc(info?.timerText || "")}</span></div></div><div class="nope-choices">${btn(esc(info?.buttonText || "打出否定"), "nope-response", "secondary nope-choice nope-play", !info?.canNope, `data-window="${esc(info?.key)}"`)}${btn("本次不出", "nope-pass", "secondary nope-choice", !info?.canPass, `data-window="${esc(info?.key)}"`)}</div></div>`;
 }
 function modal() {
   if (!S.modal) return "";
@@ -390,7 +390,7 @@ function countdown() {
   syncNopeResponse();
   const info = S.nopeInfo;
   for (const timer of document.querySelectorAll?.("[data-nope-timer]") || [])
-    timer.textContent = info?.timerText || "暂无响应";
+    timer.textContent = info?.timerText || "";
   for (const panel of document.querySelectorAll?.("[data-nope-panel]") || [])
     panel.classList.toggle("urgent", !!info?.canPass && info.remaining <= 3);
   for (const bar of document.querySelectorAll?.("[data-nope-progress]") || [])
@@ -443,8 +443,8 @@ document.addEventListener("click", async (e) => {
         toast("响应窗口已变化，请查看当前提示");
         return;
       }
-      if (a === "nope-pass") return await cmd("passNope", { nopeCount: response.nopeCount });
-      return await cmd("nope", { cardId: response.cardId, nopeCount: response.nopeCount });
+      if (a === "nope-pass") return await cmd("passNope", { nopeCount: response.nopeCount, nopeWindow: response.key });
+      return await cmd("nope", { cardId: response.cardId, nopeCount: response.nopeCount, nopeWindow: response.key });
     }
     if (a === "nope-time") {
       const seconds = Number(b.dataset.seconds);

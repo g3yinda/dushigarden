@@ -228,6 +228,11 @@ test("同一 Bot 回合暂停重连后保留出牌记忆，恢复时重新思考
     const index = source.findIndex((c) => c.type === type);
     hand.unshift(source.splice(index, 1)[0]);
   }
+  const humanHand = g.players.find(p => p.id === h.id).hand;
+  if (!humanHand.some(c => c.type === "nope")) {
+    const source = [g.deck, ...g.players.map(p => p.hand)].find(cards => cards.some(c => c.type === "nope"));
+    humanHand.push(source.splice(source.findIndex(c => c.type === "nope"), 1)[0]);
+  }
   g.current = b.id;
   g.deck.sort((a, b) => (a.type === "bomb") - (b.type === "bomb"));
   const runner = new bots.BotRunner(s, { now: () => now, rng: () => 0 });

@@ -339,9 +339,9 @@
     const canceled = p.nopeCount % 2 === 1;
     const status = p.responses?.[me(r)] || "waiting";
     const waiting = g.players.filter(player => player.alive && (!p.responses?.[player.id] || p.responses[player.id] === "waiting")).length;
-    const canPass = !!mine?.alive && status === "waiting" && remaining > 0;
+    const canPass = !!mine?.alive && !!nope && status === "waiting" && remaining > 0;
     return {
-      key: JSON.stringify([r.code, g.id, p.actor, p.type, p.nopeCount, g.deadline]),
+      key: JSON.stringify([r.code, g.id, p.actor, p.type, p.nopeCount, g.deadline, p.actionId ?? null]),
       canNope: canPass && !!nope,
       canPass, status, waiting, nopeCount: p.nopeCount,
       done: !!mine?.alive && status !== "waiting",
@@ -360,9 +360,9 @@
   function nopePanel(r, now = r?.serverNow ?? Date.now()) {
     if (r?.status !== "playing" || !r.game || r.game.phase === "finished") return null;
     const info = nopeResponse(r, now);
-    if (!info) return { active: false, key: "", canNope: false, canPass: false, done: false, remaining: 0, progress: 0, timerText: "暂无响应", buttonText: "打出否定", statusText: "当前没有可响应的动作" };
+    if (!info) return { active: false, key: "", canNope: false, canPass: false, done: false, remaining: 0, progress: 0, timerText: "", buttonText: "打出否定", statusText: "当前没有可响应的动作" };
     return { ...info, active: true, progress: info.canPass ? info.progress : 0,
-      timerText: info.canPass ? `剩余 ${info.remaining} 秒` : info.done ? "已响应" : info.statusText === "正在旁观" ? "正在旁观" : "等待结算" };
+      timerText: info.canPass ? `剩余 ${info.remaining} 秒` : info.status === "played" || (info.done && info.cardId) ? "已响应" : !info.cardId ? "" : info.statusText === "正在旁观" ? "正在旁观" : "等待结算" };
   }
   function actionPresentation(r, event) {
     function publicPlayer(id) {

@@ -802,7 +802,7 @@ test("native 失败不锁定；截止、无牌和旁观不能打出，旧层点�
   assert.equal(page.data.busy,false);
   let calls = 0; page.command = async () => calls++;
   page.accept(nopeRoom(1,[]));
-  assert.equal(page.data.nopeInfo.canPass,true);
+  assert.equal(page.data.nopeInfo.canPass,false);
   await page.action({currentTarget:{dataset:{action:"nope-pass",window:key}}});
   assert.equal(calls,0);
   page.offset=20000; page.tick();
@@ -841,7 +841,7 @@ test("browser 原页面固定是否选择否定；不出发送请求、成功后
   assert.equal(h.state.modal,null);
   assert.match(h.nodes["#app"].innerHTML,/打出反否定/);
 });
-test("browser 失败可重试，无牌可确认不出，旁观与截止禁用", async () => {
+test("browser 失败可重试，无牌与旁观及截止禁用", async () => {
   const h=await browserHarness("local");
   await receiveNope(h,nopeRoom());
   const key=h.state.nopeInfo.key;
@@ -851,7 +851,7 @@ test("browser 失败可重试，无牌可确认不出，旁观与截止禁用", 
   assert.equal(h.state.busy,false);
   await receiveNope(h,nopeRoom(1,[]));
   assert.equal(h.state.nopeInfo.canNope,false);
-  assert.equal(h.state.nopeInfo.canPass,true);
+  assert.equal(h.state.nopeInfo.canPass,false);
   const spectator=nopeRoom(2); spectator.game.players[0].alive=false;
   await receiveNope(h,spectator); assert.equal(h.state.nopeInfo.canPass,false);
   await receiveNope(h,nopeRoom(3));
@@ -886,16 +886,16 @@ for (const seconds of [15,10,5]) test(`常驻否定栏 ${seconds} 秒真实进�
  r.game.pending.nopeCount++;r.game.pending.responses={a:"waiting",b:"played"};r.game.deadline=r.serverNow+seconds*2000;
  assert.equal(ui.nopePanel(r,r.game.deadline-seconds*1000).progress,100);
 });
-test("常驻否定栏闲置/旁观/截止保持灰态，无否定牌仍能确认不出",()=>{
- const r=nopeRoom(0,[]);assert.equal(ui.nopePanel(r,r.serverNow).canNope,false);assert.equal(ui.nopePanel(r,r.serverNow).canPass,true);
+test("常驻否定栏闲置/旁观/截止保持灰态，无否定牌不需要响应",()=>{
+ const r=nopeRoom(0,[]);assert.equal(ui.nopePanel(r,r.serverNow).canNope,false);assert.equal(ui.nopePanel(r,r.serverNow).canPass,false);
  r.game.players[0].alive=false;assert.equal(ui.nopePanel(r,r.serverNow).progress,0);
- r.game.players[0].alive=true;assert.equal(ui.nopePanel(r,r.game.deadline).timerText,"等待结算");
- r.game.phase="action";const idle=ui.nopePanel(r,r.serverNow);assert.equal(idle.timerText,"暂无响应");assert.equal(idle.canPass,false);assert.equal(idle.progress,0);
+ r.game.players[0].alive=true;assert.equal(ui.nopePanel(r,r.game.deadline).timerText,"");
+ r.game.phase="action";const idle=ui.nopePanel(r,r.serverNow);assert.equal(idle.timerText,"");assert.equal(idle.canPass,false);assert.equal(idle.progress,0);
  assert.equal(ui.nopePanel(null),null);
 });
 test("browser 常驻紧凑否定栏保留禁用选项，已响应没有本人计时",async()=>{
  const h=await browserHarness("local");await receiveNope(h,{...structuredClone(room),code:"123456",serverNow:Date.now()});
- assert.match(h.nodes["#app"].innerHTML,/data-nope-panel/);assert.match(h.nodes["#app"].innerHTML,/暂无响应/);
+ assert.match(h.nodes["#app"].innerHTML,/data-nope-panel/);assert.doesNotMatch(h.nodes["#app"].innerHTML,/暂无响应/);
  assert.match(h.nodes["#app"].innerHTML,/data-action="nope-response"[^>]*disabled/);
  const r=nopeRoom();await receiveNope(h,r);assert.match(h.nodes["#app"].innerHTML,/剩余 10 秒/);
  r.game.pending.responses={a:"passed",b:"waiting"};r.revision++;await receiveNope(h,r);
@@ -903,7 +903,7 @@ test("browser 常驻紧凑否定栏保留禁用选项，已响应没有本人计
  assert.equal(h.state.nopeInfo.progress,0);
 });
 test("native 常驻灰态与截止一致，普通同步不重播行动",()=>{
- const page=nativeHarness();page.accept({...structuredClone(room),serverNow:Date.now()});assert.equal(page.data.nopeInfo.timerText,"暂无响应");
+ const page=nativeHarness();page.accept({...structuredClone(room),serverNow:Date.now()});assert.equal(page.data.nopeInfo.timerText,"");
  const r=nopeRoom();page.accept(r);r.game.pending.responses={a:"passed",b:"waiting"};r.revision++;page.accept(r);
  assert.equal(page.data.nopeInfo.timerText,"已响应");assert.equal(page.data.nopeInfo.progress,0);
 });
@@ -1021,4 +1021,19 @@ test("native 差量同步仅更新变化的玩家牌数，增减玩家仍完整�
   after.v.tablePlayers.reverse();assert.deepEqual(ui.dataPatch(before,after),{"v.tablePlayers":after.v.tablePlayers});
   after.v.tablePlayers.pop();assert.deepEqual(ui.dataPatch(before,after),{"v.tablePlayers":after.v.tablePlayers});
   assert.deepEqual(ui.dataPatch(before,{v:{}}),{v:{}});
+});
+
+test('无否定牌两个按钮置灰且本人进度归零，闲置不显示文字',()=>{
+ const r=nopeRoom(0,[]), info=ui.nopePanel(r,r.serverNow);
+ assert.equal(info.canNope,false);assert.equal(info.canPass,false);assert.equal(info.remaining,0);assert.equal(info.progress,0);assert.equal(info.timerText,'');
+ r.game.phase='action';assert.equal(ui.nopePanel(r,r.serverNow).timerText,'');
+});
+test('原生和浏览器首次否定点击携带精确窗口凭据',async()=>{
+ const r=nopeRoom(),page=nativeHarness();page.accept(r);let payload;
+ page.command=async(type,data)=>{payload={type,...data};};
+ await page.action({currentTarget:{dataset:{action:'nope-response',window:page.data.nopeInfo.key}}});
+ assert.equal(payload.nopeWindow,page.data.nopeInfo.key);
+ const h=await browserHarness('local');await receiveNope(h,r);
+ h.context.fetch=async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>r};};
+ await h.click('nope-pass',{window:h.state.nopeInfo.key});assert.equal(payload.nopeWindow,h.state.nopeInfo.key);
 });

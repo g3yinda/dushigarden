@@ -326,7 +326,13 @@ class RoomService extends EventEmitter {
       return this.view(id, code);
     }
     if (r.status === "closed") fail("房间已由房主关闭", "ROOM_CLOSED", 410);
-    if (a.revision !== r.revision)
+    // Other players passing changes the room revision, but not this response window.
+    const isResponse = ["nope", "passNope"].includes(a.type);
+    const sameWindow = isResponse && r.status === "playing" &&
+      a.gameId === r.game?.id && Number.isInteger(a.nopeCount) &&
+      a.nopeCount === r.game?.pending?.nopeCount &&
+      typeof a.nopeWindow === "string" && a.nopeWindow === E.nopeWindow(r.game, r.code);
+    if ((a.nopeWindow !== undefined && !sameWindow) || (a.revision !== r.revision && !sameWindow))
       fail("状态已更新，请重新确认操作", "STALE", 409);
     const me = r.players.find((p) => p.id === id);
     const active = r.status === "playing";
