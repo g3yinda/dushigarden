@@ -760,7 +760,7 @@
   min-height: 44px !important;
   height: 44px;
   padding: 0 6rpx !important;
-  display: flex;
+  display: flex !important;
   align-items: center;
   justify-content: center;
 }
