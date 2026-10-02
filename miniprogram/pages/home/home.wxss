@@ -1323,3 +1323,25 @@ button.danger-primary {
 @keyframes bomb-spark-6 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-240rpx,210rpx) rotate(65deg) scale(.65); } }
  .reduced .bomb-burst { display: none; }
 @media (prefers-reduced-motion: reduce) { .bomb-burst { display: none; } .explosion .motion-tile { animation: none; } }
+
+/* Create settings fit one available phone screen; long reading dialogs still scroll. */
+.modal-shade.centered.create-overlay { padding: 12px 14px max(12px, env(safe-area-inset-bottom)); }
+.create-overlay .create-sheet { max-height: calc(100vh - 24px - env(safe-area-inset-bottom)); padding: 0; overflow: hidden; }
+.create-sheet .sheet-content { padding: 14px 16px 20px; }
+.create-sheet .top, .create-header { height: 44px; margin: 0 0 8px; display: flex; align-items: center; justify-content: space-between; }
+.create-sheet .heading { margin: 0; font-size: 21px; }
+.create-sheet .create-header button.circle { width: 44px !important; min-height: 44px !important; height: 44px !important; margin: 0 !important; padding: 0 !important; }
+.create-fields { display: flex; flex-direction: column; gap: 8px; }
+.create-sheet .create-row { min-height: 44px; margin: 0; padding: 0; gap: 10px; align-items: center; }
+.setting-copy { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+.setting-title { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.setting-caption { font-size: 11px; font-weight: 400; line-height: 1.3; color: #737783; }
+.create-sheet .setting-label { font-size: 13px; line-height: 18px; margin: 0 0 5px; }
+.create-sheet .nope-options { padding: 3px; gap: 3px; }
+.create-sheet .nope-option { min-height: 44px !important; margin: 0; font-size: 14px; }
+.create-expansion > .setting-copy { margin-bottom: 7px; }
+.create-sheet .expansion-settings { padding: 0 12px; border-radius: 16px; }
+.create-sheet .expansion-settings .create-row { min-height: 48px; }
+.create-footer { padding-top: 12px; }
+.create-sheet .create-footer .primary { min-height: 48px; height: 48px; margin: 0 !important; padding: 10px 16px; font-size: 16px; }
+@media (max-height: 600px) { .create-overlay .create-sheet .sheet-content { padding-top: 8px; padding-bottom: 14px; } .create-sheet .top, .create-header { margin-bottom: 4px; } .create-fields { gap: 5px; } .create-sheet .expansion-settings .create-row { min-height: 44px; } .create-footer { padding-top: 8px; } }

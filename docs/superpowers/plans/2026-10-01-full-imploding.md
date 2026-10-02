@@ -1,5 +1,7 @@
 # 完整内爆猫六人版 Implementation Plan
 
+> 历史材料：本文件保留当时的设计、计划或验收，不作为当前行为说明。当前规则、UI、交付和待办见 [v0.9.5 当前状态](../../00-当前状态与文档索引.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** 用户已确认六人新局使用基础版＋完整20张内爆猫扩展，2–5人继续基础版。

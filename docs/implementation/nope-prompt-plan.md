@@ -1,5 +1,7 @@
 # 否定主动提示与醒目倒计时
 
+> 历史材料：本文件保留当时的设计、计划或验收，不作为当前行为说明。当前规则、UI、交付和待办见 [v0.9.5 当前状态](../00-当前状态与文档索引.md)。
+
 > 历史实现记录：其中浮层、仅本地跳过及可改出语义已被 v0.3.2 `nope-response-plan.md` 替代。
 
 用户直接要求实现本功能，沿用已批准的 Apple 浅色，不新增风格审批。brainstorming 确定边界，writing-plans 记录步骤，test-driven-development 验证行为，frontend-design 实现呈现；本次在当前会话执行。

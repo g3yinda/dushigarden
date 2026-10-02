@@ -1,5 +1,7 @@
 # v0.5 扩展牌原创插画
 
+> 历史材料：本文件保留当时的设计、计划或验收，不作为当前行为说明。当前规则、UI、交付和待办见 [v0.9.5 当前状态](../../../docs/00-当前状态与文档索引.md)。
+
 使用 GPT 内置 image_gen，未使用 Canva 或单独计费 CLI/API。参考现有原创 core-cards-overview.png 的柔和猫咪插画风格；不复制官方游戏角色、牌面或文字。
 
 最终源图：expansion-art-atlas.png，1536×1024；3列×2行，每格512×512。顺序：内爆猫、定向攻击、反转；抽牌底、调整未来、野猫。运行资源为web/expansion.jpg、miniprogram/assets/expansion.jpg，JPEG质量78。名称、数字、规则和状态均由组件渲染。
