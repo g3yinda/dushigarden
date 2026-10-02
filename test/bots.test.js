@@ -298,6 +298,13 @@ test("进行中的 Bot 预知阶段从快照恢复后自动关闭并继续抽牌
         1,
       )[0],
     );
+    // This scenario waits through a Nope window. Random deals without a
+    // human Nope resolve Future immediately and its own timer then expires.
+    const humanHand = g.players.find((p) => p.id === h.id).hand;
+    if (!humanHand.some((c) => c.type === "nope")) {
+      const nopeSource = [g.deck, hand].find((cards) => cards.some((c) => c.type === "nope"));
+      humanHand.push(nopeSource.splice(nopeSource.findIndex((c) => c.type === "nope"), 1)[0]);
+    }
     g.current = b.id;
     const runner = new bots.BotRunner(s, { now: () => now, rng: () => 0 });
     runner.step();

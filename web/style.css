@@ -1088,7 +1088,7 @@ h3 {
   width: min(100%, 410px);
   border-radius: 26px;
   max-height: calc(100dvh - 40px);
-  padding: 20px;
+  padding: 20px 20px 28px;
 }
 .centered .sheet h2 {
   font-size: 21px;
@@ -1439,10 +1439,17 @@ body.home-page { overflow: hidden; overscroll-behavior-y: none; }
 .home-controls { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
 .home-shell .identity { height: 52px; gap: 12px; margin: 0; }
 .home-shell .identity .avatar { width: 52px; height: 52px; }
-.home-shell .identity input { height: 48px; box-sizing: border-box; padding: 12px 14px; font-size: 16px; }
+.home-shell .name-field { min-width: 0; height: 48px; display: flex; align-items: center; padding: 0 14px; border: 1px solid #e3e3e8; border-radius: 14px; background: #fafafc; }
+.home-shell .name-field input { width: 100%; min-width: 0; height: 24px; min-height: 0; line-height: 24px; padding: 0; border: 0; border-radius: 0; background: transparent; text-align: left; font-size: 16px; }
 .home-actions { display: flex; flex-direction: column; gap: 10px; }
 .home-shell .home-actions button { min-height: 48px; height: 48px; margin: 0; padding: 10px 16px; font-size: 17px; display: flex; align-items: center; justify-content: center; }
 .home-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 14px; height: 44px; margin-top: 8px; }
 .home-footer .text-btn { min-height: 44px; margin: 0; padding: 0 12px; font-size: 14px; display: flex; align-items: center; justify-content: center; }
 .home-footer .circle { width: 44px; min-height: 44px; height: 44px; font-size: 22px; padding: 0; display: flex; align-items: center; justify-content: center; }
 .home-shell > .connections, .home-shell > .connection { display: none; }
+
+/* Keep the turn summary below the piles so the top seat remains unobstructed. */
+.table-playing .board-stage { min-height: 300px; }
+.board-center { top: 52%; }
+.board-center .piles { margin-top: 0; }
+.board-center .turn-label { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: 210px; padding: 0; flex-direction: row; align-items: center; justify-content: center; gap: 6px; line-height: 1.2; }

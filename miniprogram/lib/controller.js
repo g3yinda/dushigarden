@@ -240,7 +240,7 @@
       const p = ps[(Math.max(0, myIndex) + i) % ps.length];
       const [x, y] =
         i === 0 ? [50, 90] : positions[ps.length]?.[i - 1] || [50, 10];
-      return { ...p, seatStyle: `left:${x}%;top:${y}%;` };
+      return { ...p, seatStyle: `left:${x}%;top:clamp(52px,${y}%,calc(100% - 34px));` };
     });
     const alive = !!g.players.find((p) => p.id === id)?.alive,
       turn = g.current === id,

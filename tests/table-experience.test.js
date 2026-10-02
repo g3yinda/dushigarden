@@ -31,7 +31,16 @@ test("2–6 位玩家围同桌，自己在下方且其他座位按实际下家�
     const v = U.derive(r, []);
     assert.equal(v.tablePlayers.length, n);
     assert(v.tablePlayers[0].isMe);
-    assert.match(v.tablePlayers[0].seatStyle, /top:90%/);
+    assert.match(v.tablePlayers[0].seatStyle, /top:clamp\(52px,90%,calc\(100% - 34px\)\)/);
+    for (const p of v.tablePlayers) {
+      const position = p.seatStyle.match(/top:clamp\(52px,(\d+)%,calc\(100% - 34px\)\)/);
+      assert(position, "每个座位都有头像安全边距");
+      for (const height of [300, 310, 330]) {
+        const center = Math.max(52, Math.min(height * Number(position[1]) / 100, height - 34));
+        assert(center - 48 >= 4, "最高座位的头像及高亮留在牌桌内");
+        assert(center + 30 <= height - 4, "最下方本人头像及高亮留在牌桌内");
+      }
+    }
     for (let i = 1; i < n; i++)
       assert.equal(v.tablePlayers[i].id, String((Number(r.me) + i) % n));
     assert.equal(new Set(v.tablePlayers.map((p) => p.seatStyle)).size, n);
