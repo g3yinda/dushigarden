@@ -1188,7 +1188,7 @@ button.danger-primary {
 .reduced .nope-progress > view { transition: none; }
 
 /* Approved compact first screen; reserve space beneath scrollable private phases. */
-.table-playing.game-shell { padding: 20rpx 28rpx calc(170rpx + env(safe-area-inset-bottom)); }
+.table-playing.game-shell { padding: 20rpx 28rpx calc(296rpx + env(safe-area-inset-bottom)); }
 .table-playing > .top { margin-bottom: 12rpx; }
 .table-playing .game-room { padding-bottom: 16rpx; }
 .table-playing .board-stage {
@@ -1201,12 +1201,16 @@ button.danger-primary {
 .table-playing .hand .card { height: 260rpx; }
 .table-playing .card-spine { top: 12rpx; bottom: 12rpx; padding: 10rpx 7rpx; font-size: 24rpx; line-height: 1.25; }
 .table-playing .selection-preview { min-height: 0; padding: 8rpx 0; }
-.table-playing .table-actions {
+.table-playing .table-dock {
   position: fixed;
   z-index: 6;
   bottom: 0;
   left: 0;
   right: 0;
+  background: #fff;
+}
+.table-playing .table-dock .nope-banner { margin: 0 46rpx 16rpx; }
+.table-playing .table-actions {
   display: flex;
   flex-wrap: nowrap;
   gap: 20rpx;
