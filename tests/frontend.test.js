@@ -373,6 +373,7 @@ async function browserHarness(mode) {
     requests,
     nodes,
     state: vm.runInContext("S", context),
+    change: (target) => handlers.change({ target }),
     click: (action, data = {}) =>
       handlers.click({ target: { closest: () => ({ dataset: { action, ...data } }) } }),
   };
@@ -1036,4 +1037,31 @@ test('原生和浏览器首次否定点击携带精确窗口凭据',async()=>{
  const h=await browserHarness('local');await receiveNope(h,r);
  h.context.fetch=async(url,options)=>{payload=JSON.parse(options.body);return {ok:true,json:async()=>r};};
  await h.click('nope-pass',{window:h.state.nopeInfo.key});assert.equal(payload.nopeWindow,h.state.nopeInfo.key);
+});
+
+test('六人自选扩展说明与三张索牌过滤仅反转关闭项，基础版不变',()=>{
+ const r=waitingRoom();r.players=Array.from({length:6},(_,i)=>({id:i?'p'+i:'a'}));r.options={includeImploding:false,includeReverse:false};
+ assert.match(ui.derive(r,[]).rulesLabel,/自选|无内爆|不含/);assert.doesNotMatch(ui.derive(r,[]).rulesLabel,/完整/);
+ r.status='playing';r.game={...structuredClone(room.game),rulesVersion:'ek-imploding-2023-online-v1',options:r.options};
+ assert(!ui.namedOptions(r).some(o=>o.value==='reverse'));assert(ui.namedOptions(r).some(o=>o.value==='alterFuture'));
+ r.game.options={includeImploding:true,includeReverse:true};assert(ui.namedOptions(r).some(o=>o.value==='reverse'));assert.match(ui.derive(r,[]).rulesLabel,/完整/);
+ r.game=null;r.players=r.players.slice(0,5);assert.equal(ui.derive(r,[]).rulesLabel,'基础版');
+});
+test('原生扩展开关独立切换、提交和建房面板复位',async()=>{
+ const page=nativeHarness();page.data.room=null;page.session=async()=>{};page.poll=()=>{};let payload;
+ page.request=async(url,body)=>{payload=body;return waitingRoom();};
+ await page.action({currentTarget:{dataset:{action:'create'}}});
+ assert.equal(page.data.includeImploding,true);assert.equal(page.data.includeReverse,true);
+ page.expansionSetting({currentTarget:{dataset:{field:'includeImploding'}},detail:{value:false}});
+ assert.equal(page.data.includeImploding,false);assert.equal(page.data.includeReverse,true);
+ page.expansionSetting({currentTarget:{dataset:{field:'includeReverse'}},detail:{value:false}});
+ await page.action({currentTarget:{dataset:{action:'create-submit'}}});assert.equal(payload.includeImploding,false);assert.equal(payload.includeReverse,false);
+ await page.action({currentTarget:{dataset:{action:'create'}}});assert.equal(page.data.includeImploding,true);assert.equal(page.data.includeReverse,true);
+});
+test('浏览器建房提交自选扩展并重开面板复位',async()=>{
+ const h=await browserHarness('local');h.state.token='test-authenticated';vm.runInContext('poll = async()=>{}',h.context);h.context.fetch=async(url,options)=>{h.requests.push({url,options});return {ok:true,json:async()=>waitingRoom()};};await h.click('create');assert.equal(h.state.includeImploding,true);assert.equal(h.state.includeReverse,true);
+ assert.match(h.nodes['#app'].innerHTML,/加入内爆猫/);assert.match(h.nodes['#app'].innerHTML,/加入反转/);
+ h.change({id:'include-imploding',checked:false});assert.equal(h.state.includeReverse,true);h.change({id:'include-reverse',checked:false});await h.click('create-submit');
+ const call=h.requests.find(r=>r.url==='/api/rooms');assert(call);const body=JSON.parse(call.options.body);assert.equal(body.includeImploding,false);assert.equal(body.includeReverse,false);
+ await h.click('create');assert.equal(h.state.includeImploding,true);assert.equal(h.state.includeReverse,true);
 });

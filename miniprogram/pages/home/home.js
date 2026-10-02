@@ -24,6 +24,8 @@ Page({
     respondNope: false,
     noTurnTimer: false,
     nopeSeconds: 10,
+    includeImploding: true,
+    includeReverse: true,
     nopeTimes: [15, 10, 5],
     nopeInfo: null,
     handScroll: 0,
@@ -345,6 +347,10 @@ Page({
   roomSetting(e) {
     this.updateData({ noTurnTimer: e.detail.value });
   },
+  expansionSetting(e) {
+    const field = e.currentTarget.dataset.field;
+    if (["includeImploding", "includeReverse"].includes(field)) this.updateData({ [field]: e.detail.value === true });
+  },
   handScrolled(e) {
     this.handScroll = e.detail.scrollLeft;
   },
@@ -436,7 +442,7 @@ Page({
         return;
       }
       if (a === "create") {
-        this.updateData({ modal: "create", noTurnTimer: false, nopeSeconds: 10 });
+        this.updateData({ modal: "create", noTurnTimer: false, nopeSeconds: 10, includeImploding: true, includeReverse: true });
         return;
       }
       if (a === "bots") {
@@ -475,7 +481,7 @@ Page({
         const r = await this.request(
           a === "create-submit" ? "/rooms" : "/rooms/join",
           a === "create-submit"
-            ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds }
+            ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds, includeImploding: this.data.includeImploding, includeReverse: this.data.includeReverse }
             : { code: this.data.code },
         );
         this.updateData({ modal: "" });

@@ -39,12 +39,15 @@ class RoomService extends EventEmitter {
       for (const r of Object.values(this.rooms)) {
         if (
           !r.options || ![15, 10, 5].includes(r.options.nopeSeconds) ||
+          typeof r.options?.includeImploding !== "boolean" || typeof r.options?.includeReverse !== "boolean" ||
           (r.game && !r.game.options)
         ) repaired = true;
         r.options = {
           noTurnTimer: r.options?.noTurnTimer === true,
           nopeSeconds: [15, 10, 5].includes(r.options?.nopeSeconds)
             ? r.options.nopeSeconds : 5,
+          includeImploding: r.options?.includeImploding !== false,
+          includeReverse: r.options?.includeReverse !== false,
         };
         if (r.game) r.game.options = copy(r.options);
         if (r.game && r.status === "playing") {
@@ -266,6 +269,8 @@ class RoomService extends EventEmitter {
       typeof options.noTurnTimer !== "boolean"
     )
       fail("不限时设置必须为布尔值");
+    for (const key of ["includeImploding", "includeReverse"])
+      if (Object.hasOwn(options, key) && typeof options[key] !== "boolean") fail("扩展规则设置必须为布尔值");
     if (this.find(id)) fail("请先离开当前房间；对局中需等待结束");
     let code;
     do {
@@ -279,6 +284,8 @@ class RoomService extends EventEmitter {
       options: {
         noTurnTimer: options.noTurnTimer === true,
         nopeSeconds: options.nopeSeconds ?? 10,
+        includeImploding: options.includeImploding ?? true,
+        includeReverse: options.includeReverse ?? true,
       },
       players: [this.seat(id)],
       game: null,

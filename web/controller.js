@@ -82,7 +82,7 @@
   function namedOptions(r) {
     const expanded = r?.game?.rulesVersion === "ek-imploding-2023-online-v1";
     return Object.entries(names)
-      .filter(([type]) => !["bomb", "imploding"].includes(type) && (expanded || !expansionTypes.includes(type)))
+      .filter(([type]) => !["bomb", "imploding"].includes(type) && (expanded || !expansionTypes.includes(type)) && (type !== "reverse" || (r?.game?.options?.includeReverse ?? r?.options?.includeReverse) !== false))
       .map(([value, label]) => ({ value, label }));
   }
   function card(c) {
@@ -180,12 +180,14 @@
       isHost: p.id === r.hostId,
       active: g && p.id === g.current,
     }));
+    const options = g?.options || r.options || {};
+    const omitted = [options.includeImploding === false ? "无内爆猫" : "", options.includeReverse === false ? "无反转" : ""].filter(Boolean);
     const base = {
       players: ps,
       rulesLabel: g?.rulesVersion === "ek-original-2025-friends-6p-v1"
         ? "六人朋友规则（旧局）"
         : g?.rulesVersion === "ek-imploding-2023-online-v1" || (!g && r.players.length === 6)
-          ? "完整内爆猫扩展" : "基础版",
+          ? omitted.length ? `自选扩展 · ${omitted.join("、")}` : "完整内爆猫扩展" : "基础版",
       noTurnTimer: r.options?.noTurnTimer === true,
       nopeSeconds: r.options?.nopeSeconds ?? 10,
       isHost: r.hostId === id,

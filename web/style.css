@@ -1413,3 +1413,8 @@ h3 {
 }
 .table-playing .hand-area .table-actions > .secondary { flex: 1 1 0; border: 1px solid #0071e3; color: #0071e3; background: #fff; }
 .table-playing .table-actions > .primary:disabled { background: #b4c7ef; color: #fff; opacity: 1; }
+
+/* Room-specific six-player expansion choices. */
+.expansion-settings { padding: 0 14px; background: #f5f5f7; border: 1px solid #e8e8ed; border-radius: 18px; }
+.expansion-settings .switch { margin: 0; min-height: 52px; gap: 12px; }
+.expansion-settings .switch + .switch { border-top: 1px solid #e8e8ed; }

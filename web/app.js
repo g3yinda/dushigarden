@@ -30,6 +30,8 @@ const S = {
   respondNope: false,
   noTurnTimer: false,
   nopeSeconds: 10,
+  includeImploding: true,
+  includeReverse: true,
   nopeInfo: null,
   handExpanded: false,
   error: "",
@@ -315,7 +317,7 @@ function modal() {
   switch (S.modal) {
     case "create":
       title = "一起开一局";
-      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、调整未来、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p>${btn("创建好友房", "create-submit")}`;
+      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、调整未来、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p><div class="setting-label">六人扩展规则</div><p class="setting-note">仅六人开局生效，2–5 人仍为基础版</p><div class="expansion-settings"><label class="switch">加入内爆猫<input id="include-imploding" type="checkbox" ${S.includeImploding ? "checked" : ""}></label><label class="switch">加入反转<input id="include-reverse" type="checkbox" ${S.includeReverse ? "checked" : ""}></label></div>${!S.includeImploding ? '<p class="setting-note">关闭内爆猫时改用 5 张普通炸弹</p>' : ""}${btn("创建好友房", "create-submit")}`;
       break;
     case "bots":
       title = "添加验证 Bot";
@@ -424,6 +426,10 @@ document.addEventListener("input", (e) => {
 document.addEventListener("change", (e) => {
   if (e.target.id === "bot-count") S.botCount = Number(e.target.value);
   if (e.target.id === "no-turn-timer") S.noTurnTimer = e.target.checked;
+  if (["include-imploding", "include-reverse"].includes(e.target.id)) {
+    S[e.target.id === "include-imploding" ? "includeImploding" : "includeReverse"] = e.target.checked;
+    render();
+  }
   if (e.target.id === "bot-nope") S.respondNope = e.target.checked;
   if (["reduced", "sound"].includes(e.target.id)) {
     S.settings[e.target.id] = e.target.checked;
@@ -464,6 +470,8 @@ document.addEventListener("click", async (e) => {
     if (a === "create") {
       S.noTurnTimer = false;
       S.nopeSeconds = 10;
+      S.includeImploding = true;
+      S.includeReverse = true;
       S.modal = "create";
       render();
       return;
@@ -504,7 +512,7 @@ document.addEventListener("click", async (e) => {
       accept(
         await api(
           a === "create-submit" ? "/rooms" : "/rooms/join",
-          a === "create-submit" ? { noTurnTimer: S.noTurnTimer, nopeSeconds: S.nopeSeconds } : { code },
+          a === "create-submit" ? { noTurnTimer: S.noTurnTimer, nopeSeconds: S.nopeSeconds, includeImploding: S.includeImploding, includeReverse: S.includeReverse } : { code },
         ),
       );
       S.modal = null;

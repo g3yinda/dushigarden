@@ -115,8 +115,11 @@ function createGame(
     id = randomUUID(),
     noTurnTimer = false,
     nopeSeconds = 10,
+    includeImploding = true,
+    includeReverse = true,
   } = {},
 ) {
+  if (typeof includeImploding !== "boolean" || typeof includeReverse !== "boolean") fail("扩展规则设置必须为布尔值");
   if (![15, 10, 5].includes(nopeSeconds)) fail("否定时长请选择15、10或5秒");
   if (
     players.length < 2 ||
@@ -134,20 +137,20 @@ function createGame(
   }));
   const deck = [];
   for (const type of (n === 6 ? TYPES : BASE_TYPES)) {
-    if (isHazard(type) || type === "defuse") continue;
+    if (isHazard(type) || type === "defuse" || (type === "reverse" && !includeReverse)) continue;
     for (let i = 0; i < CARDS[type].count; i++) deck.push(make(type));
   }
   for (let i = 0; i < Math.min(2, 6 - n); i++) deck.push(make("defuse"));
   shuffle(deck, rng);
   for (const p of ps) p.hand.push(...deck.splice(0, 7));
-  for (let i = 0; i < (n === 6 ? 4 : n - 1); i++) deck.push(make("bomb"));
-  if (n === 6) deck.push(make("imploding"));
+  for (let i = 0; i < (n === 6 && includeImploding ? 4 : n - 1); i++) deck.push(make("bomb"));
+  if (n === 6 && includeImploding) deck.push(make("imploding"));
   shuffle(deck, rng);
   const g = {
     id,
     version: 1,
     rulesVersion: n === 6 ? "ek-imploding-2023-online-v1" : "ek-original-2025-online-v1",
-    options: { noTurnTimer: noTurnTimer === true, nopeSeconds },
+    options: { noTurnTimer: noTurnTimer === true, nopeSeconds, includeImploding, includeReverse },
     players: ps,
     deck,
     discard: [],
@@ -307,6 +310,7 @@ function play(g, id, a, now, rng) {
     fail("组合必须同名，野猫只能替代同一种普通猫");
   if (cards.some(c => CARDS[c.type]?.expansion) && g.rulesVersion !== "ek-imploding-2023-online-v1")
     fail("本局未启用内爆猫扩展");
+  if (cards.some(c => c.type === "reverse") && g.options?.includeReverse === false) fail("本局未启用反转");
   let type = kind;
   if (
     cards.length === 1 &&
@@ -325,7 +329,7 @@ function play(g, id, a, now, rng) {
     const t = player(g, a.target);
     if (!t.alive || (type !== "targetAttack" && t.id === id)) fail("请选择另一名存活玩家");
     if (["favor", "pair"].includes(type) && !t.hand.length) fail("这位玩家没有手牌");
-    if (type === "triple" && (!TYPES.includes(a.named) || isHazard(a.named) || (EXPANSION_TYPES.includes(a.named) && g.rulesVersion !== "ek-imploding-2023-online-v1")))
+    if (type === "triple" && (!TYPES.includes(a.named) || isHazard(a.named) || (a.named === "reverse" && g.options?.includeReverse === false) || (EXPANSION_TYPES.includes(a.named) && g.rulesVersion !== "ek-imploding-2023-online-v1")))
       fail("请选择要索取的牌名");
   }
   if (g.deadline !== null) g.budget = Math.max(0, g.deadline - now);
@@ -474,6 +478,7 @@ function project(g, id) {
     version: g.version,
     phase: g.phase,
     rulesVersion: g.rulesVersion,
+    options: clone(g.options || {}),
     direction: g.direction || 1,
     current: g.current,
     remaining: g.remaining,

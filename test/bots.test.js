@@ -350,14 +350,17 @@ test("Bot 随快照恢复，重新开局自动准备，2–6 人最终可以结�
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
-  for (const n of [2, 3, 4, 5, 6]) {
+  for (const { n, options } of [
+    ...[2, 3, 4, 5, 6].map(n => ({ n, options: {} })),
+    ...[{includeImploding:false,includeReverse:true},{includeImploding:true,includeReverse:false},{includeImploding:false,includeReverse:false}].map(options => ({n:6,options})),
+  ]) {
     let now = 1000;
     let seed = n;
     const rng = () =>
       (seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296;
     const s = new RoomService({ allowBots: true, now: () => now });
     const h = s.session({ name: "验证者" }).player;
-    let r = s.create(h.id);
+    let r = s.create(h.id, options);
     r = command(s, h.id, r, "addBots", { count: n - 1, respondNope: true });
     r = command(s, h.id, r, "ready", { ready: true });
     r = command(s, h.id, r, "start");

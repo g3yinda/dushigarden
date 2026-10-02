@@ -210,10 +210,10 @@ test("HTTP 建房传递不限时布尔选项，拒绝其他值且过滤时长覆
     a.token,
   );
   assert.equal(made.status, 200);
-  assert.deepEqual(made.data.options, { noTurnTimer: true, nopeSeconds: 10 });
+  assert.deepEqual(made.data.options, { noTurnTimer: true, nopeSeconds: 10, includeImploding: true, includeReverse: true });
   const b = (await req("/api/session", { name: "普通猫" })).data;
   const normal = await req("/api/rooms", {}, b.token);
-  assert.deepEqual(normal.data.options, { noTurnTimer: false, nopeSeconds: 10 });
+  assert.deepEqual(normal.data.options, { noTurnTimer: false, nopeSeconds: 10, includeImploding: true, includeReverse: true });
 });
 
 // Exercise the real HTTP handler with the socket source seen from a phone.
@@ -375,4 +375,11 @@ test("普通服务不会因为手机请求头而开启LAN身份，正式模式�
     () => createServer({ mode: "wechat", lanToken: "c".repeat(64) }),
     /只能用于本地开发/,
   );
+});
+
+test('HTTP独立扩展开关公开返回并拒绝非布尔',async(t)=>{
+ const req=await fixture(t),a=(await req('/api/session',{name:'扩展验证'})).data;
+ for(const options of [{includeImploding:'false'},{includeReverse:0},{includeReverse:null}])assert.equal((await req('/api/rooms',options,a.token)).status,400);
+ const r=await req('/api/rooms',{includeImploding:false,includeReverse:true},a.token);
+ assert.equal(r.status,200);assert.equal(r.data.options.includeImploding,false);assert.equal(r.data.options.includeReverse,true);
 });
