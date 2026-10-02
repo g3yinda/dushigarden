@@ -24,9 +24,10 @@ Page({
     respondNope: false,
     noTurnTimer: false,
     nopeSeconds: 10,
+    allowNopeChain: true,
     includeImploding: true,
     includeReverse: true,
-    nopeTimes: [15, 10, 5],
+    nopeTimes: [10, 20, 30, 0],
     nopeInfo: null,
     handScroll: 0,
     handExpanded: false,
@@ -199,7 +200,8 @@ Page({
     let selected = this.data.selected.filter((id) =>
       r.game?.hand.some((c) => c.id === id),
     );
-    const changed = U.contextChanged(old, r);
+    const changed = old?.code !== r.code || U.contextChanged(old, r);
+    const keepExit = old?.code === r.code && ["leave", "close-room"].includes(this.data.modal);
     const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
     const named = v.namedOptions.some(c => c.value === this.data.named) ? this.data.named : "defuse";
@@ -221,7 +223,7 @@ Page({
         ? { botCount: 1, botCountIndex: 0 }
         : {}),
       connection: "",
-      ...(changed || (this.data.modal === "close-room" && !v.isHost)
+      ...((changed && !keepExit) || (this.data.modal === "close-room" && !v.isHost)
         ? { modal: "", target: "", position: 1, positionIndex: 0 }
         : {}),
     });
@@ -349,7 +351,7 @@ Page({
   },
   expansionSetting(e) {
     const field = e.currentTarget.dataset.field;
-    if (["includeImploding", "includeReverse"].includes(field)) this.updateData({ [field]: e.detail.value === true });
+    if (["allowNopeChain", "includeImploding", "includeReverse"].includes(field)) this.updateData({ [field]: e.detail.value === true });
   },
   handScrolled(e) {
     this.handScroll = e.detail.scrollLeft;
@@ -442,7 +444,7 @@ Page({
         return;
       }
       if (a === "create") {
-        this.updateData({ modal: "create", noTurnTimer: false, nopeSeconds: 10, includeImploding: true, includeReverse: true });
+        this.updateData({ modal: "create", noTurnTimer: false, nopeSeconds: 10, allowNopeChain: true, includeImploding: true, includeReverse: true });
         return;
       }
       if (a === "bots") {
@@ -481,7 +483,7 @@ Page({
         const r = await this.request(
           a === "create-submit" ? "/rooms" : "/rooms/join",
           a === "create-submit"
-            ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds, includeImploding: this.data.includeImploding, includeReverse: this.data.includeReverse }
+            ? { noTurnTimer: this.data.noTurnTimer, nopeSeconds: this.data.nopeSeconds, allowNopeChain: this.data.allowNopeChain, includeImploding: this.data.includeImploding, includeReverse: this.data.includeReverse }
             : { code: this.data.code },
         );
         this.updateData({ modal: "" });

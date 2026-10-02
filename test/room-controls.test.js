@@ -23,7 +23,7 @@ function start(x) {
   x.r = move(x.s, x.a, x.r, "start");
   return x;
 }
-for (const nopeSeconds of [15, 10, 5]) {
+for (const nopeSeconds of [10, 20, 30]) {
   for (const noTurnTimer of [false, true]) test(`否定时长 ${nopeSeconds} 秒，不限时 ${noTurnTimer}，否定与反否定重新计时`, () => {
     let g = E.createGame([{ id: "a", name: "甲" }, { id: "b", name: "乙" }], { now: 1000, nopeSeconds, noTurnTimer });
     // Move existing cards rather than introducing extra cards; preserve invariants.
@@ -53,15 +53,15 @@ for (const nopeSeconds of [15, 10, 5]) {
     E.assertInvariant(g);
   });
 }
-test("新房间否定默认10秒，只接受数字15/10/5，开局与再开沿用", () => {
+test("新房间否定默认10秒，只接受数字10/20/30或0，开局与再开沿用", () => {
   const x = setup();
   assert.equal(x.r.options.nopeSeconds, 10);
   const outsider = x.s.session().player.id;
-  for (const bad of [null, "10", 0, 1, 6, 20, {}, true])
+  for (const bad of [null, "10", 5, 15, 1, 6, {}, true])
     assert.throws(() => x.s.create(outsider, { nopeSeconds: bad }));
-  for (const bad of [null, "10", 20])
+  for (const bad of [null, "10", 40])
     assert.throws(() => E.createGame([{ id: "a" }, { id: "b" }], { nopeSeconds: bad }));
-  for (const seconds of [15, 10, 5]) {
+  for (const seconds of [10, 20, 30]) {
     const y = start(setup({ nopeSeconds: seconds, noTurnTimer: true }));
     assert.equal(y.s.rooms[y.r.code].game.options.nopeSeconds, seconds);
     y.s.rooms[y.r.code].status = "finished";
@@ -95,7 +95,7 @@ for (const playing of [false, true]) test(`房主关闭 ${playing ? "对局中" 
   assert.equal(s.current(a).code, nextA.code);
 });
 test("关闭通知仅对原成员可见，保存恢复仍释放占用并停止Bot", () => {
-  const x = start(setup({ nopeSeconds: 15 }, true));
+  const x = start(setup({ nopeSeconds: 20 }, true));
   const { s, a } = x;
   const runner = new BotRunner(s, { delay: 10000 });
   runner.step();
@@ -111,16 +111,16 @@ test("关闭通知仅对原成员可见，保存恢复仍释放占用并停止Bo
     assert.equal(recovered.current(a), null);
     assert.equal(recovered.view(a, closed.code).status, "closed");
     assert.equal(recovered.rooms[closed.code].game, null);
-    assert.equal(recovered.view(a, closed.code).options.nopeSeconds, 15);
+    assert.equal(recovered.view(a, closed.code).options.nopeSeconds, 20);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 test("旧快照缺少否定时长保留5秒，有配置的快照保留设置和deadline", () => {
   const dir = fs.mkdtempSync(join(tmpdir(), "boomcat-nope-"));
   try {
-    const x = start(setup({ nopeSeconds: 15 }));
+    const x = start(setup({ nopeSeconds: 20 }));
     x.s.file = join(dir, "state.json"); x.s.save();
     let recovered = new RoomService({ file: x.s.file, now: () => 1000 });
-    assert.equal(recovered.current(x.a).options.nopeSeconds, 15);
+    assert.equal(recovered.current(x.a).options.nopeSeconds, 20);
     const snapshot = JSON.parse(fs.readFileSync(x.s.file));
     delete snapshot.rooms[x.r.code].options.nopeSeconds;
     delete snapshot.rooms[x.r.code].game.options.nopeSeconds;

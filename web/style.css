@@ -1422,3 +1422,6 @@ h3 {
 .expansion-settings { padding: 0 14px; background: #f5f5f7; border: 1px solid #e8e8ed; border-radius: 18px; }
 .expansion-settings .switch { margin: 0; min-height: 52px; gap: 12px; }
 .expansion-settings .switch + .switch { border-top: 1px solid #e8e8ed; }
+
+/* Highlight only a choice this player can still make; no pulsing or layout shift. */
+.nope-banner.awaiting { background: #eaf3ff; border-color: #0071e3; }

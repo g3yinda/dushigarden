@@ -38,14 +38,15 @@ class RoomService extends EventEmitter {
       let repaired = false;
       for (const r of Object.values(this.rooms)) {
         if (
-          !r.options || ![15, 10, 5].includes(r.options.nopeSeconds) ||
-          typeof r.options?.includeImploding !== "boolean" || typeof r.options?.includeReverse !== "boolean" ||
+          !r.options || ![0, 5, 10, 15, 20, 30].includes(r.options.nopeSeconds) ||
+          typeof r.options?.allowNopeChain !== "boolean" || typeof r.options?.includeImploding !== "boolean" || typeof r.options?.includeReverse !== "boolean" ||
           (r.game && !r.game.options)
         ) repaired = true;
         r.options = {
           noTurnTimer: r.options?.noTurnTimer === true,
-          nopeSeconds: [15, 10, 5].includes(r.options?.nopeSeconds)
+          nopeSeconds: [0, 5, 10, 15, 20, 30].includes(r.options?.nopeSeconds)
             ? r.options.nopeSeconds : 5,
+          allowNopeChain: r.options?.allowNopeChain !== false,
           includeImploding: r.options?.includeImploding !== false,
           includeReverse: r.options?.includeReverse !== false,
         };
@@ -174,6 +175,7 @@ class RoomService extends EventEmitter {
     const was = this.online(p);
     this.presence[id] = this.now();
     p.away = false;
+    if (r.offlineNope) delete r.offlineNope.deadlines[id];
     const canceled = r.offlineTurn?.playerId === id;
     if (canceled) r.offlineTurn = null;
     if (!was || canceled) this.changed(r);
@@ -186,6 +188,7 @@ class RoomService extends EventEmitter {
       r.status !== "playing" ||
       !r.options?.noTurnTimer ||
       !g ||
+      g.phase === "nope" ||
       g.deadline !== null ||
       !E.RULES[g.phase] ||
       !responsible ||
@@ -206,6 +209,28 @@ class RoomService extends EventEmitter {
       deadline: now + E.RULES[g.phase],
     };
     return true;
+  }
+  updateOfflineNope(r, now) {
+    const g = r.game;
+    if (g?.phase !== "nope" || g.deadline !== null) { r.offlineNope = null; return false; }
+    const key = E.nopeWindow(g, r.code);
+    if (r.offlineNope?.key !== key) r.offlineNope = { key, deadlines: {} };
+    const deadlines = r.offlineNope.deadlines;
+    let changed = false;
+    for (const seat of r.players) {
+      if (r.game.phase !== "nope" || E.nopeWindow(r.game, r.code) !== key) break;
+      if (r.game.pending.responses?.[seat.id] !== "waiting" || this.online(seat)) {
+        delete deadlines[seat.id]; continue;
+      }
+      deadlines[seat.id] ??= now + E.RULES.nope;
+      if (now >= deadlines[seat.id]) {
+        // Only pass the disconnected seat; online players retain unlimited choice.
+        r.game = E.command(r.game, seat.id, { type: "passNope", nopeCount: r.game.pending.nopeCount }, { now });
+        E.assertInvariant(r.game);
+        delete deadlines[seat.id]; changed = true;
+      }
+    }
+    return changed;
   }
   changed(r) {
     r.revision++;
@@ -261,15 +286,15 @@ class RoomService extends EventEmitter {
   create(id, options = {}) {
     if (
       Object.hasOwn(options, "nopeSeconds") &&
-      ![15, 10, 5].includes(options.nopeSeconds)
+      ![10, 20, 30, 0].includes(options.nopeSeconds)
     )
-      fail("否定时长请选择15、10或5秒");
+      fail("否定时长请选择10、20、30秒或不限时");
     if (
       Object.hasOwn(options, "noTurnTimer") &&
       typeof options.noTurnTimer !== "boolean"
     )
       fail("不限时设置必须为布尔值");
-    for (const key of ["includeImploding", "includeReverse"])
+    for (const key of ["allowNopeChain", "includeImploding", "includeReverse"])
       if (Object.hasOwn(options, key) && typeof options[key] !== "boolean") fail("扩展规则设置必须为布尔值");
     if (this.find(id)) fail("请先离开当前房间；对局中需等待结束");
     let code;
@@ -284,6 +309,7 @@ class RoomService extends EventEmitter {
       options: {
         noTurnTimer: options.noTurnTimer === true,
         nopeSeconds: options.nopeSeconds ?? 10,
+        allowNopeChain: options.allowNopeChain ?? true,
         includeImploding: options.includeImploding ?? true,
         includeReverse: options.includeReverse ?? true,
       },
@@ -415,6 +441,7 @@ class RoomService extends EventEmitter {
       n.players.forEach((p) => {
         p.ready = !!p.isBot;
         p.away = false;
+    if (r.offlineNope) delete r.offlineNope.deadlines[id];
       });
     } else if (a.type === "leave") {
       if (active) {
@@ -501,7 +528,8 @@ class RoomService extends EventEmitter {
           continue;
         }
         try {
-          const timerChanged = this.updateOfflineTurn(r, now);
+          const nopeChanged = this.updateOfflineNope(r, now);
+          const timerChanged = this.updateOfflineTurn(r, now) || nopeChanged;
           const timeout = r.offlineTurn && now >= r.offlineTurn.deadline;
           const state = timeout
             ? { ...r.game, deadline: r.offlineTurn.deadline }

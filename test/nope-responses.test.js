@@ -94,12 +94,12 @@ test('服务端不出幂等、刷新/快照恢复仍锁定；全员确认发出�
     assert.equal(events,1); E.assertInvariant(recovered.rooms[r.code].game);
   } finally {fs.rmSync(dir,{recursive:true,force:true});}
 });
-test('四个 Bot 不出均确认，别人的确认不会重置 Bot 思考时间，5秒窗内提前结算', () => {
+for (const nopeSeconds of [0, 10]) test(`四个 Bot 均确认，其他响应不重置思考时间，否定时长${nopeSeconds}`, () => {
   const {RoomService} = require('../server/rooms'), {BotRunner} = require('../server/bots');
   let now=1000;
   const s=new RoomService({allowBots:true,now:()=>now});
   const host=s.session({name:'验证'}).player.id;
-  let r=s.create(host,{nopeSeconds:5,noTurnTimer:true}), serial=0;
+  let r=s.create(host,{nopeSeconds,noTurnTimer:true}), serial=0;
   const move=(type,extra={})=>{
     r=s.view(host,r.code);
     return r=s.command(host,r.code,{type,...extra,revision:r.revision,gameId:r.game?.id,commandId:'bot-response-'+ ++serial});

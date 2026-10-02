@@ -30,6 +30,7 @@ const S = {
   respondNope: false,
   noTurnTimer: false,
   nopeSeconds: 10,
+  allowNopeChain: true,
   includeImploding: true,
   includeReverse: true,
   nopeInfo: null,
@@ -128,8 +129,8 @@ function accept(r) {
   S.clockOffset = r.serverNow - Date.now();
   S.selected = S.selected.filter((id) => r.game?.hand.some((c) => c.id === id));
   if (S.modal === "close-room" && !U.derive(r, S.selected).isHost) S.modal = null;
-  if (U.contextChanged(old, r)) {
-    S.modal = null;
+  if (old?.code !== r.code || U.contextChanged(old, r)) {
+    if (old?.code !== r.code || !["leave", "close-room"].includes(S.modal)) S.modal = null;
     S.target = "";
     S.position = 1;
     if (S.settings.sound) tone();
@@ -274,7 +275,7 @@ function lobby() {
   return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="2–6 人炸弹猫，可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""><span class="hero-count">2–6 人</span></div><p class="hero-rules-note">2–5 人基础版 · 6 人完整内爆猫扩展</p><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–6 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
 }
 function waiting(r, v) {
-  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${esc(v.rulesLabel)} · ${v.noTurnTimer ? "∞ 出牌不限时" : "出牌 30 秒"} · 否定 ${v.nopeSeconds} 秒</p><div class="seats">${v.players.map((p) => `<div data-render-key="seat:${esc(p.id)}" class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/6 人 · 每人 8 张起手牌</p>`;
+  return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${esc(v.rulesLabel)} · ${v.noTurnTimer ? "∞ 出牌不限时" : "出牌 30 秒"} · 否定 ${esc(v.nopeTimeLabel)}</p><div class="seats">${v.players.map((p) => `<div data-render-key="seat:${esc(p.id)}" class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/6 人 · 每人 8 张起手牌</p>`;
 }
 function game(r, v) {
   const g = r.game;
@@ -307,7 +308,7 @@ function phase(r, v) {
 function nopeBar() {
   const info = S.nopeInfo;
   const description = info?.active ? `${info.actorName} · ${info.actionName}；${info.stateText}；${info.statusText || "选择不出后，本轮不能更改"}；等待 ${info.waiting} 位玩家` : "当前没有可响应的动作";
-  return `<div class="nope-banner ${info?.canPass && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel title="${esc(description)}" aria-label="${esc(description)}"><div class="nope-banner-copy"><h3>是否选择否定？</h3><div class="nope-timer-line"><div class="nope-progress" aria-hidden="true"><span data-nope-progress style="width:${info?.progress || 0}%"></span></div><span class="nope-timer-text" data-nope-timer>${esc(info?.timerText || "")}</span></div></div><div class="nope-choices">${btn(esc(info?.buttonText || "打出否定"), "nope-response", "secondary nope-choice nope-play", !info?.canNope, `data-window="${esc(info?.key)}"`)}${btn("本次不出", "nope-pass", "secondary nope-choice", !info?.canPass, `data-window="${esc(info?.key)}"`)}</div></div>`;
+  return `<div class="nope-banner ${info?.canPass ? "awaiting" : ""} ${info?.canPass && !info.unlimited && info.remaining <= 3 ? "urgent" : ""}" data-nope-panel title="${esc(description)}" aria-label="${esc(description)}"><div class="nope-banner-copy"><h3>是否选择否定？</h3><div class="nope-timer-line"><div class="nope-progress" aria-hidden="true"><span data-nope-progress style="width:${info?.progress || 0}%"></span></div><span class="nope-timer-text" data-nope-timer>${esc(info?.timerText || "")}</span></div></div><div class="nope-choices">${btn(esc(info?.buttonText || "打出否定"), "nope-response", "secondary nope-choice nope-play", !info?.canNope, `data-window="${esc(info?.key)}"`)}${btn("本次不出", "nope-pass", "secondary nope-choice", !info?.canPass, `data-window="${esc(info?.key)}"`)}</div></div>`;
 }
 function modal() {
   if (!S.modal) return "";
@@ -317,7 +318,7 @@ function modal() {
   switch (S.modal) {
     case "create":
       title = "一起开一局";
-      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、调整未来、拆弹和插回都不限时；否定仍按所选时长倒计时。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[15, 10, 5].map(seconds => btn(seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><p class="setting-note">每次否定、反否定都会重新计时</p><div class="setting-label">六人扩展规则</div><p class="setting-note">仅六人开局生效，2–5 人仍为基础版</p><div class="expansion-settings"><label class="switch">加入内爆猫<input id="include-imploding" type="checkbox" ${S.includeImploding ? "checked" : ""}></label><label class="switch">加入反转<input id="include-reverse" type="checkbox" ${S.includeReverse ? "checked" : ""}></label></div>${!S.includeImploding ? '<p class="setting-note">关闭内爆猫时改用 5 张普通炸弹</p>' : ""}${btn("创建好友房", "create-submit")}`;
+      body = `<p class="muted">设置好节奏，再邀请朋友入座。</p><label class="switch">出牌不倒计时<input id="no-turn-timer" type="checkbox" ${S.noTurnTimer ? "checked" : ""}></label><p class="muted">开启后，出牌、交牌、预知、调整未来、拆弹和插回都不限时；否定按下方设置响应。离线后由系统托管。</p><div class="setting-label" id="nope-time-label">否定响应时长</div><div class="nope-options" role="group" aria-labelledby="nope-time-label">${[10, 20, 30, 0].map(seconds => btn(seconds === 0 ? "不限时" : seconds + " 秒", "nope-time", "nope-option " + (S.nopeSeconds === seconds ? "chosen" : ""), false, `data-seconds="${seconds}" aria-pressed="${S.nopeSeconds === seconds}"`)).join("")}</div><label class="switch">可循环否定<input id="allow-nope-chain" type="checkbox" ${S.allowNopeChain ? "checked" : ""}></label><p class="setting-note">开启后可否定上一张否定；每层独立响应</p><div class="setting-label">六人扩展规则</div><p class="setting-note">仅六人开局生效，2–5 人仍为基础版</p><div class="expansion-settings"><label class="switch">加入内爆猫<input id="include-imploding" type="checkbox" ${S.includeImploding ? "checked" : ""}></label><label class="switch">加入反转<input id="include-reverse" type="checkbox" ${S.includeReverse ? "checked" : ""}></label></div>${!S.includeImploding ? '<p class="setting-note">关闭内爆猫时改用 5 张普通炸弹</p>' : ""}${btn("创建好友房", "create-submit")}`;
       break;
     case "bots":
       title = "添加验证 Bot";
@@ -393,8 +394,10 @@ function countdown() {
   const info = S.nopeInfo;
   for (const timer of document.querySelectorAll?.("[data-nope-timer]") || [])
     timer.textContent = info?.timerText || "";
-  for (const panel of document.querySelectorAll?.("[data-nope-panel]") || [])
-    panel.classList.toggle("urgent", !!info?.canPass && info.remaining <= 3);
+  for (const panel of document.querySelectorAll?.("[data-nope-panel]") || []) {
+    panel.classList.toggle("awaiting", !!info?.canPass);
+    panel.classList.toggle("urgent", !!info?.canPass && !info.unlimited && info.remaining <= 3);
+  }
   for (const bar of document.querySelectorAll?.("[data-nope-progress]") || [])
     bar.style.width = (info?.progress ?? 0) + "%";
   for (const button of document.querySelectorAll?.('[data-action="nope"], [data-action="nope-response"]') || [])
@@ -426,8 +429,8 @@ document.addEventListener("input", (e) => {
 document.addEventListener("change", (e) => {
   if (e.target.id === "bot-count") S.botCount = Number(e.target.value);
   if (e.target.id === "no-turn-timer") S.noTurnTimer = e.target.checked;
-  if (["include-imploding", "include-reverse"].includes(e.target.id)) {
-    S[e.target.id === "include-imploding" ? "includeImploding" : "includeReverse"] = e.target.checked;
+  if (["allow-nope-chain", "include-imploding", "include-reverse"].includes(e.target.id)) {
+    S[{"allow-nope-chain":"allowNopeChain", "include-imploding":"includeImploding", "include-reverse":"includeReverse"}[e.target.id]] = e.target.checked;
     render();
   }
   if (e.target.id === "bot-nope") S.respondNope = e.target.checked;
@@ -454,7 +457,7 @@ document.addEventListener("click", async (e) => {
     }
     if (a === "nope-time") {
       const seconds = Number(b.dataset.seconds);
-      if ([15, 10, 5].includes(seconds)) S.nopeSeconds = seconds;
+      if ([10, 20, 30, 0].includes(seconds)) S.nopeSeconds = seconds;
       render();
       return;
     }
@@ -470,6 +473,7 @@ document.addEventListener("click", async (e) => {
     if (a === "create") {
       S.noTurnTimer = false;
       S.nopeSeconds = 10;
+      S.allowNopeChain = true;
       S.includeImploding = true;
       S.includeReverse = true;
       S.modal = "create";
@@ -512,7 +516,7 @@ document.addEventListener("click", async (e) => {
       accept(
         await api(
           a === "create-submit" ? "/rooms" : "/rooms/join",
-          a === "create-submit" ? { noTurnTimer: S.noTurnTimer, nopeSeconds: S.nopeSeconds, includeImploding: S.includeImploding, includeReverse: S.includeReverse } : { code },
+          a === "create-submit" ? { noTurnTimer: S.noTurnTimer, nopeSeconds: S.nopeSeconds, allowNopeChain: S.allowNopeChain, includeImploding: S.includeImploding, includeReverse: S.includeReverse } : { code },
         ),
       );
       S.modal = null;

@@ -150,14 +150,14 @@ test("房间选项默认 false，只接受布尔值且不接受自定义时长",
   for (const noTurnTimer of [null, 1, "true", {}, []])
     assert.throws(() => s.create(a.player.id, { noTurnTimer }));
   const r = s.create(a.player.id, { action: 1, nope: 1 });
-  assert.deepEqual(r.options, { noTurnTimer: false, nopeSeconds: 10, includeImploding: true, includeReverse: true });
+  assert.deepEqual(r.options, { noTurnTimer: false, nopeSeconds: 10, allowNopeChain: true, includeImploding: true, includeReverse: true });
 });
 test("不限时选项保存快照，重开沿用，旧快照缺项默认 false", () => {
   const fs = require("node:fs");
   const dir = mkdtempSync(join(tmpdir(), "boomcat-options-"));
   try {
     const { s, a, r } = started({ noTurnTimer: true });
-    assert.deepEqual(r.options, { noTurnTimer: true, nopeSeconds: 10, includeImploding: true, includeReverse: true });
+    assert.deepEqual(r.options, { noTurnTimer: true, nopeSeconds: 10, allowNopeChain: true, includeImploding: true, includeReverse: true });
     assert.equal(r.game.deadline, null);
     s.file = join(dir, "state.json");
     s.save();
@@ -176,7 +176,7 @@ test("不限时选项保存快照，重开沿用，旧快照缺项默认 false",
     data.rooms[r.code].game.deadline = 31000;
     fs.writeFileSync(s.file, JSON.stringify(data));
     const legacy = new RoomService({ file: s.file, now: () => 1000 });
-    assert.deepEqual(legacy.current(a.player.id).options, { noTurnTimer: false, nopeSeconds: 5, includeImploding: true, includeReverse: true });
+    assert.deepEqual(legacy.current(a.player.id).options, { noTurnTimer: false, nopeSeconds: 5, allowNopeChain: true, includeImploding: true, includeReverse: true });
     assert.equal(legacy.current(a.player.id).game.deadline, 31000);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

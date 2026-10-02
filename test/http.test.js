@@ -210,22 +210,22 @@ test("HTTP 建房传递不限时布尔选项，拒绝其他值且过滤时长覆
     a.token,
   );
   assert.equal(made.status, 200);
-  assert.deepEqual(made.data.options, { noTurnTimer: true, nopeSeconds: 10, includeImploding: true, includeReverse: true });
+  assert.deepEqual(made.data.options, { noTurnTimer: true, nopeSeconds: 10, allowNopeChain: true, includeImploding: true, includeReverse: true });
   const b = (await req("/api/session", { name: "普通猫" })).data;
   const normal = await req("/api/rooms", {}, b.token);
-  assert.deepEqual(normal.data.options, { noTurnTimer: false, nopeSeconds: 10, includeImploding: true, includeReverse: true });
+  assert.deepEqual(normal.data.options, { noTurnTimer: false, nopeSeconds: 10, allowNopeChain: true, includeImploding: true, includeReverse: true });
 });
 
 // Exercise the real HTTP handler with the socket source seen from a phone.
-test("HTTP 三档否定设置校验；房主关闭唤醒成员长轮询并释放房间占用", async (t) => {
+test("HTTP 四档否定设置校验；房主关闭唤醒成员长轮询并释放房间占用", async (t) => {
   const service = new RoomService({ now: () => 1000 });
   const req = await fixture(t, { service, pollMs: 1000 });
   const a = (await req("/api/session", { name: "房主" })).data;
   const b = (await req("/api/session", { name: "成员" })).data;
-  for (const nopeSeconds of ["10", null, 0, 20])
+  for (const nopeSeconds of ["10", null, 5, 15])
     assert.equal((await req("/api/rooms", { nopeSeconds }, a.token)).status, 400);
-  let r = (await req("/api/rooms", { nopeSeconds: 15 }, a.token)).data;
-  assert.equal(r.options.nopeSeconds, 15);
+  let r = (await req("/api/rooms", { nopeSeconds: 20 }, a.token)).data;
+  assert.equal(r.options.nopeSeconds, 20);
   r = (await req("/api/rooms/join", { code: r.code }, b.token)).data;
   const closing = { type: "closeRoom", revision: r.revision, commandId: "close-room" };
   assert.equal((await req(`/api/rooms/${r.code}/command`, closing, b.token)).status, 403);
@@ -243,7 +243,7 @@ test("HTTP 三档否定设置校验；房主关闭唤醒成员长轮询并释放
   assert.equal((await req(`/api/rooms/${r.code}/command`, closing, a.token)).data.revision, close.data.revision);
   assert.equal((await req("/api/rooms/current", null, b.token)).data, null);
   assert.equal((await req("/api/rooms/join", { code: r.code }, b.token)).status, 410);
-  assert.equal((await req("/api/rooms", { nopeSeconds: 5 }, b.token)).status, 200);
+  assert.equal((await req("/api/rooms", { nopeSeconds: 30 }, b.token)).status, 200);
 });
 async function lanRequest(
   server,
@@ -383,3 +383,14 @@ test('HTTP独立扩展开关公开返回并拒绝非布尔',async(t)=>{
  const r=await req('/api/rooms',{includeImploding:false,includeReverse:true},a.token);
  assert.equal(r.status,200);assert.equal(r.data.options.includeImploding,false);assert.equal(r.data.options.includeReverse,true);
 });
+
+ test("HTTP 四档与循环开关传递，无效类型拒绝", async t => {
+ const req=await fixture(t);
+ for(const nopeSeconds of [10,20,30,0])for(const allowNopeChain of [true,false]){
+ const session=(await req('/api/session',{name:'设置验收'})).data;
+ const result=await req('/api/rooms',{nopeSeconds,allowNopeChain},session.token);
+ assert.equal(result.status,200);assert.equal(result.data.options.nopeSeconds,nopeSeconds);assert.equal(result.data.options.allowNopeChain,allowNopeChain);
+ }
+ const session=(await req('/api/session',{})).data;
+ for(const allowNopeChain of ['false',null,0])assert.equal((await req('/api/rooms',{allowNopeChain},session.token)).status,400);
+ });

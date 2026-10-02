@@ -237,7 +237,7 @@ test("native 创建房间先选择不限时模式，最终提交房间选项", a
   assert.equal(calls[0].url, "/rooms");
   assert.equal(calls[0].body.noTurnTimer, true);
 });
-test("native 建房默认10秒，可选择15/5秒并提交，重开建房面板复位", async () => {
+test("native 建房默认10秒，可选择20/30秒及不限时并提交，重开建房面板复位", async () => {
   const page = nativeHarness();
   page.data.room = null;
   page.session = async () => {};
@@ -246,7 +246,7 @@ test("native 建房默认10秒，可选择15/5秒并提交，重开建房面板�
   page.request = async (_, body) => { calls.push(body); return waitingRoom(); };
   await page.action({ currentTarget: { dataset: { action: "create" } } });
   assert.equal(page.data.nopeSeconds, 10);
-  for (const seconds of [15, 5]) {
+  for (const seconds of [20, 30, 0]) {
     await page.action({ currentTarget: { dataset: { action: "nope-time", seconds } } });
     await page.action({ currentTarget: { dataset: { action: "create-submit" } } });
     assert.equal(calls.at(-1).nopeSeconds, seconds);
@@ -441,7 +441,7 @@ test("browser 建房默认10秒，三档选择提交且普通成员看不到关�
   const h = await browserHarness("local");
   await h.click("create");
   assert.equal(h.state.nopeSeconds, 10);
-  for (const seconds of [15, 10, 5]) {
+  for (const seconds of [10, 20, 30, 0]) {
     await h.click("nope-time", { seconds });
     assert.equal(h.state.nopeSeconds, seconds);
     h.state.token = "test";
@@ -1064,4 +1064,41 @@ test('浏览器建房提交自选扩展并重开面板复位',async()=>{
  h.change({id:'include-imploding',checked:false});assert.equal(h.state.includeReverse,true);h.change({id:'include-reverse',checked:false});await h.click('create-submit');
  const call=h.requests.find(r=>r.url==='/api/rooms');assert(call);const body=JSON.parse(call.options.body);assert.equal(body.includeImploding,false);assert.equal(body.includeReverse,false);
  await h.click('create');assert.equal(h.state.includeImploding,true);assert.equal(h.state.includeReverse,true);
+});
+
+test('退出确认不受阶段、玩家、否定层或对局结束更新影响；其他操作仍关闭',async()=>{
+ const page=nativeHarness();const h=await browserHarness('local');let r=nopeRoom();r.hostId='a';
+ page.accept(r);await receiveNope(h,r);
+ for(const modal of ['leave','close-room']){
+  page.updateData({modal});h.state.modal=modal;
+  for(const phase of ['action','nope','finished']){
+   r=structuredClone(r);r.revision++;r.game.phase=phase;r.game.current=r.game.current==='a'?'b':'a';r.game.pending={actor:'b',type:'attack',nopeCount:r.revision};
+   page.accept(r);await receiveNope(h,r);
+   assert.equal(page.data.modal,modal);assert.equal(h.state.modal,modal);
+  }
+ }
+ page.updateData({modal:'close-room'});h.state.modal='close-room';r=structuredClone(r);r.revision++;r.hostId='b';page.accept(r);await receiveNope(h,r);
+ assert.equal(page.data.modal,'');assert.equal(h.state.modal,null);
+});
+test('不限时否定本人可选择并显示不限时；选择不出后恢复置灰',()=>{
+ const r=nopeRoom();r.options.nopeSeconds=0;r.game.deadline=null;r.game.pending.responses={a:'waiting',b:'waiting'};
+ const p=ui.nopePanel(r,r.serverNow+100000);assert.equal(p.canPass,true);assert.equal(p.canNope,true);assert.equal(p.timerText,'不限时');assert.equal(p.progress,100);
+ r.game.pending.responses.a='passed';const done=ui.nopePanel(r,r.serverNow+100000);assert.equal(done.canPass,false);assert.equal(done.progress,0);
+});
+test('循环否定开关两端提交并重开复位，四档含不限时',async()=>{
+ const page=nativeHarness();page.session=async()=>{};page.poll=()=>{};let body;
+ page.request=async(url,payload)=>{body=payload;return waitingRoom();};await page.action({currentTarget:{dataset:{action:'create'}}});
+ assert.equal(page.data.allowNopeChain,true);assert.deepEqual(Array.from(page.data.nopeTimes),[10,20,30,0]);
+ page.expansionSetting({currentTarget:{dataset:{field:'allowNopeChain'}},detail:{value:false}});
+ await page.action({currentTarget:{dataset:{action:'nope-time',seconds:0}}});await page.action({currentTarget:{dataset:{action:'create-submit'}}});assert.equal(body.allowNopeChain,false);assert.equal(body.nopeSeconds,0);
+ const h=await browserHarness('local');h.state.token='test';vm.runInContext('poll=async()=>{}',h.context);h.context.fetch=async(url,options)=>{body=JSON.parse(options.body);return {ok:true,json:async()=>waitingRoom()};};
+ await h.click('create');assert.match(h.nodes['#app'].innerHTML,/可循环否定/);assert.match(h.nodes['#app'].innerHTML,/不限时/);h.change({id:'allow-nope-chain',checked:false});await h.click('nope-time',{seconds:'0'});await h.click('create-submit');assert.equal(body.allowNopeChain,false);assert.equal(body.nopeSeconds,0);
+ await h.click('create');assert.equal(h.state.allowNopeChain,true);
+});
+test('浏览器定时刷新保持不限时蓝色高亮，截止或响应后撤去高亮',async()=>{
+ const h=await browserHarness('local'),classes=new Set();
+ h.context.document.querySelectorAll=selector=>selector==='[data-nope-panel]'?[{classList:{toggle:(name,on)=>on?classes.add(name):classes.delete(name)}}]:[];
+ const r=nopeRoom();r.options.nopeSeconds=0;r.game.deadline=null;await receiveNope(h,r);vm.runInContext('countdown()',h.context);
+ assert(classes.has('awaiting'));assert(!classes.has('urgent'));
+ r.game.pending.responses={a:'passed',b:'waiting'};r.revision++;await receiveNope(h,r);vm.runInContext('countdown()',h.context);assert(!classes.has('awaiting'));
 });

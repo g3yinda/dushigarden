@@ -46,7 +46,7 @@ function phase(g, name, now) {
     ? (g.options?.nopeSeconds ?? 10) * 1000
     : RULES[name];
   g.deadline =
-    g.options?.noTurnTimer && name !== "nope"
+    (g.options?.noTurnTimer && name !== "nope") || (name === "nope" && duration === 0)
       ? null
       : now + duration;
 }
@@ -115,12 +115,15 @@ function createGame(
     id = randomUUID(),
     noTurnTimer = false,
     nopeSeconds = 10,
+    allowNopeChain = true,
     includeImploding = true,
     includeReverse = true,
   } = {},
 ) {
   if (typeof includeImploding !== "boolean" || typeof includeReverse !== "boolean") fail("扩展规则设置必须为布尔值");
-  if (![15, 10, 5].includes(nopeSeconds)) fail("否定时长请选择15、10或5秒");
+  if (typeof allowNopeChain !== "boolean") fail("可循环否定设置必须为布尔值");
+  // 5/15 remain valid only for games restored from old rooms.
+  if (![0, 5, 10, 15, 20, 30].includes(nopeSeconds)) fail("否定时长请选择10、20、30秒或不限时");
   if (
     players.length < 2 ||
     players.length > 6 ||
@@ -150,7 +153,7 @@ function createGame(
     id,
     version: 1,
     rulesVersion: n === 6 ? "ek-imploding-2023-online-v1" : "ek-original-2025-online-v1",
-    options: { noTurnTimer: noTurnTimer === true, nopeSeconds, includeImploding, includeReverse },
+    options: { noTurnTimer: noTurnTimer === true, nopeSeconds, allowNopeChain, includeImploding, includeReverse },
     players: ps,
     deck,
     discard: [],
@@ -380,12 +383,14 @@ function command(state, id, a, { now = Date.now(), rng = random } = {}) {
       {
         kind: "nope",
         actor: id,
-        target: g.pending.actor,
+        target: g.pending.lastNopeActor || g.pending.actor,
         cards: [{ id: c.id, type: c.type }],
         nopeCount: g.pending.nopeCount,
       },
     );
-    openNope(g, now, rng, id);
+    g.pending.lastNopeActor = id;
+    if (g.options?.allowNopeChain === false) resolve(g, now, rng);
+    else openNope(g, now, rng, id);
   } else if (a.type === "passNope") {
     if (!Number.isInteger(a.nopeCount)) fail("请选择当前否定窗口");
     checkResponse(g, id, a);

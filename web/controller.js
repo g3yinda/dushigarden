@@ -190,6 +190,8 @@
           ? omitted.length ? `自选扩展 · ${omitted.join("、")}` : "完整内爆猫扩展" : "基础版",
       noTurnTimer: r.options?.noTurnTimer === true,
       nopeSeconds: r.options?.nopeSeconds ?? 10,
+      nopeTimeLabel: r.options?.nopeSeconds === 0 ? "不限时" : `${r.options?.nopeSeconds ?? 10} 秒`,
+      allowNopeChain: r.options?.allowNopeChain !== false,
       isHost: r.hostId === id,
       myId: id,
       ready: !!r.players.find((p) => p.id === id)?.ready,
@@ -331,9 +333,10 @@
   }
   function nopeResponse(r, now = r?.serverNow ?? Date.now()) {
     const g = r?.game, p = g?.pending;
-    if (r?.status !== "playing" || g?.phase !== "nope" || !p || !Number.isFinite(g.deadline))
+    if (r?.status !== "playing" || g?.phase !== "nope" || !p || (g.deadline !== null && !Number.isFinite(g.deadline)))
       return null;
-    const remaining = Math.max(0, Math.ceil((g.deadline - now) / 1000));
+    const unlimited = g.deadline === null;
+    const remaining = unlimited ? null : Math.max(0, Math.ceil((g.deadline - now) / 1000));
     const mine = g.players.find((player) => player.id === me(r));
     const nope = g.hand.find((c) => c.type === "nope");
     const actionName = p.type === "pair" ? "同名对子"
@@ -341,16 +344,16 @@
     const canceled = p.nopeCount % 2 === 1;
     const status = p.responses?.[me(r)] || "waiting";
     const waiting = g.players.filter(player => player.alive && (!p.responses?.[player.id] || p.responses[player.id] === "waiting")).length;
-    const canPass = !!mine?.alive && !!nope && status === "waiting" && remaining > 0;
+    const canPass = !!mine?.alive && !!nope && status === "waiting" && (unlimited || remaining > 0);
     return {
       key: JSON.stringify([r.code, g.id, p.actor, p.type, p.nopeCount, g.deadline, p.actionId ?? null]),
       canNope: canPass && !!nope,
-      canPass, status, waiting, nopeCount: p.nopeCount,
+      canPass, status, waiting, unlimited, nopeCount: p.nopeCount,
       done: !!mine?.alive && status !== "waiting",
       statusText: status === "passed" ? "已选择不出 · 本轮已完成" : status === "played" ? "已打出否定 · 本轮已完成" : !mine?.alive ? "正在旁观" : remaining === 0 ? "响应已结束 · 等待结算" : "",
       cardId: nope?.id,
       remaining: canPass ? remaining : 0,
-      progress: Math.min(100, Math.max(0, (g.deadline - now) / ((r.options?.nopeSeconds ?? 10) * 1000) * 100)),
+      progress: unlimited ? 100 : Math.min(100, Math.max(0, (g.deadline - now) / ((r.options?.nopeSeconds ?? 10) * 1000) * 100)),
       actorName: r.players.find((player) => player.id === p.actor)?.name || "一位朋友",
       actionName,
       stateText: canceled ? "当前效果将被取消" : "当前效果将会生效",
@@ -364,7 +367,7 @@
     const info = nopeResponse(r, now);
     if (!info) return { active: false, key: "", canNope: false, canPass: false, done: false, remaining: 0, progress: 0, timerText: "", buttonText: "打出否定", statusText: "当前没有可响应的动作" };
     return { ...info, active: true, progress: info.canPass ? info.progress : 0,
-      timerText: info.canPass ? `剩余 ${info.remaining} 秒` : info.status === "played" || (info.done && info.cardId) ? "已响应" : !info.cardId ? "" : info.statusText === "正在旁观" ? "正在旁观" : "等待结算" };
+      timerText: info.canPass ? (info.unlimited ? "不限时" : `剩余 ${info.remaining} 秒`) : info.status === "played" || (info.done && info.cardId) ? "已响应" : !info.cardId ? "" : info.statusText === "正在旁观" ? "正在旁观" : "等待结算" };
   }
   function actionPresentation(r, event) {
     function publicPlayer(id) {
