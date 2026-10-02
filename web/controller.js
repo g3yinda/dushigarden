@@ -93,7 +93,7 @@
     const [hx, hy, hw, hh] = expansionIndex >= 0
       ? [(expansionIndex % 3) * 512 + 24, Math.floor(expansionIndex / 3) * 512 + 72, 464, 416]
       : [x, y, w, h];
-    const spineTone = /^cat[1-5]$/.test(c.type) || c.type === "feral" ? "cat"
+    const spineTone = c.type === "bomb" ? "bomb" : /^cat[1-5]$/.test(c.type) || c.type === "feral" ? "cat"
       : c.type === "defuse" ? "defuse" : c.type === "nope" ? "nope"
       : ["attack", "targetAttack"].includes(c.type) ? "attack" : "other";
     return {
@@ -389,7 +389,7 @@
     const actor = publicPlayer(event.actor), target = publicPlayer(event.target);
     const labels = [...new Set(event.cards.map(c => names[c.type] || c.type))].join(" + ");
     const quantity = event.cards.length > 1 ? ` ×${event.cards.length} 张` : "";
-    const actionText = event.kind === "implode"
+    const actionText = event.kind === "bomb" ? "抽到了炸弹猫！" : event.kind === "implode"
       ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
       : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
       : `打出「${labels}」${quantity}`;
@@ -403,7 +403,9 @@
       if (b.phase === "defuse")
         return {
           kind: "bomb",
-          title: "抽到炸弹猫",
+          explosion: true,
+          ...actionPresentation(next, { kind: "bomb", actor: b.current, cards: [{ type: "bomb" }] }),
+          title: "抽到了炸弹猫！",
           card: card({ type: "bomb" }),
         };
       if (b.phase === "insert" && b.bomb?.type === "imploding")
@@ -460,11 +462,12 @@
         const c = e.cards[0];
         return {
           kind: e.kind === "implode" ? "bomb" : e.kind,
+          explosion: e.kind === "bomb",
           ...actionPresentation(next, e),
           count: e.cards.length,
           card: card(e.kind === "implode" ? { ...c, faceUp: true } : c),
           title:
-            e.kind === "implode"
+            e.kind === "bomb" ? `${actor}抽到了炸弹猫！` : e.kind === "implode"
               ? `${actor}${c.faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"}`
               : e.kind === "nope"
               ? `${actor}${e.nopeCount % 2 ? "否定 · 动作取消" : "反否定 · 动作恢复"}`

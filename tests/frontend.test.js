@@ -1112,7 +1112,8 @@ test("手牌分类色保留普通猫与野猫、拆弹、否定及两种攻击�
     assert.equal(controller.card({id:"n",type:"nope"}).spineTone, "nope");
     for (const type of ["attack", "targetAttack"])
       assert.equal(controller.card({id:type,type}).spineTone, "attack");
-    for (const type of ["bomb", "imploding", "skip", "favor", "shuffle", "future", "reverse", "bottom", "alterFuture"])
+    assert.equal(controller.card({id:"b",type:"bomb"}).spineTone, "bomb");
+    for (const type of ["imploding", "skip", "favor", "shuffle", "future", "reverse", "bottom", "alterFuture"])
       assert.equal(controller.card({id:type,type}).spineTone, "other");
   }
 });

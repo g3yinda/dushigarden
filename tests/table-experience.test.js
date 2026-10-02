@@ -125,3 +125,20 @@ test("旧事件缺少目标时不从后来动作猜测，私密抽牌保持短�
   const tasks=[];const player=U.createMotionPlayer({show(){},schedule:(_,ms)=>{tasks.push(ms);return 1;}});
   player.push({kind:"draw"});assert.equal(tasks[0],1600);
 });
+
+test("旧快照进入拆弹也显示抽弹玩家，与新公开事件不重复", () => {
+  const before = room(3, 0), after = structuredClone(before);
+  after.game.current = "2";
+  after.game.phase = "defuse";
+  const fallback = U.motions(before, after);
+  assert.equal(fallback.length, 1);
+  assert.equal(fallback[0].actor.id, "2");
+  assert.equal(fallback[0].relationship, "猫2");
+  assert.equal(fallback[0].explosion, true);
+  after.game.logs = [{ id: 1, cardEvent: { kind: "bomb", actor: "2", cards: [{ id: "b", type: "bomb" }] } }];
+  assert.equal(U.motions(before, after).length, 1);
+  after.game.phase = "insert";
+  after.game.bomb = { type: "imploding" };
+  delete after.game.logs;
+  assert.notEqual(U.motions(before, after)[0].explosion, true, "首次抽未翻面内爆猫不播放炸弹猫爆炸");
+});

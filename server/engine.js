@@ -201,7 +201,9 @@ function draw(g, now, fromBottom = false) {
       return;
     }
   } else {
-    log(g, p.name + " 抽到了炸弹猫");
+    log(g, p.name + " 抽到了炸弹猫", {
+      kind: "bomb", actor: p.id, cards: [clone(card)],
+    });
     if (p.hand.some(c => c.type === "defuse")) {
       phase(g, "defuse", now);
       return;

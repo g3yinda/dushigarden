@@ -1466,3 +1466,31 @@ body.home-page { overflow: hidden; overscroll-behavior-y: none; }
 .card-spine.tone-nope { background: #fce5e8; }
 .card-spine.tone-attack { background: #fff0d8; }
 .card-spine.tone-other { background: #e6f1fc; }
+
+/* Bomb warning: one soft burst, then a stable, readable five-second card. */
+.card.tone-bomb { position: relative; background: #fff1f2; border-color: #efb5b8; }
+.card.tone-bomb::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; border-radius: 14px 0 0 14px; background: #eda0a6; }
+.hand .card.tone-bomb::before { display: none; }
+.card-spine.tone-bomb { background: #f1b4b9; color: #d9182b; }
+.card.tone-bomb > strong { color: #d9182b; font-weight: 700; }
+.explosion .motion-tile { border-color: #efb5b8; background: #fffafa; box-shadow: 0 12px 36px #bd334323; }
+.explosion .motion-relationship { font-size: 24px; font-weight: 700; }
+.explosion .motion-action { color: #d9182b; font-size: 24px; font-weight: 700; }
+.bomb-burst { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.burst-ring { position: absolute; left: 50%; top: 50%; width: 280px; height: 280px; margin: -140px 0 0 -140px; border: 9px solid #f29b66; border-radius: 50%; background: radial-gradient(circle, transparent 45%, #ffd9a175 62%, #f498863d 65%, transparent 70%); animation: bomb-ring 900ms ease-out both; }
+.burst-spark { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 5px; background: #ef885b; opacity: 0; animation-duration: 850ms; animation-timing-function: ease-out; animation-fill-mode: both; }
+.burst-spark.s1 { animation-name: bomb-spark-1; }
+.burst-spark.s2 { animation-name: bomb-spark-2; }
+.burst-spark.s3 { animation-name: bomb-spark-3; }
+.burst-spark.s4 { animation-name: bomb-spark-4; }
+.burst-spark.s5 { animation-name: bomb-spark-5; }
+.burst-spark.s6 { animation-name: bomb-spark-6; }
+@keyframes bomb-ring { 0% { opacity: 0; transform: scale(.25); } 20% { opacity: .85; } 100% { opacity: 0; transform: scale(1.22); } }
+@keyframes bomb-spark-1 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(145px,-85px) rotate(65deg) scale(.65); } }
+@keyframes bomb-spark-2 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(155px,15px) rotate(65deg) scale(.65); } }
+@keyframes bomb-spark-3 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(120px,105px) rotate(65deg) scale(.65); } }
+@keyframes bomb-spark-4 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-145px,-85px) rotate(65deg) scale(.65); } }
+@keyframes bomb-spark-5 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-155px,15px) rotate(65deg) scale(.65); } }
+@keyframes bomb-spark-6 { 0% { opacity: 0; transform: scale(.3); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(-120px,105px) rotate(65deg) scale(.65); } }
+ .reduced .bomb-burst { display: none; }
+@media (prefers-reduced-motion: reduce) { .bomb-burst { display: none; } .explosion .motion-tile { animation: none; } }

@@ -245,3 +245,30 @@ test("null deadline 永不自动推进且玩家仍可在任意时间操作", () 
   assert.equal(g.deadline, null);
   assert.equal(g.budget, E.RULES.action);
 });
+
+test("抽弹公开事件标明玩家：有拆弹、直接出局和合并快照都能展示且不泄露手牌", () => {
+  const U = require("../web/controller");
+  for (const hasDefuse of [true, false]) {
+    let g = arrange(game(), [[...(hasDefuse ? ["defuse"] : []), "future"], ["skip"], ["shuffle"]], ["bomb", "skip", "bomb"]);
+    const before = { me: "p1", game: E.project(g, "p1") };
+    g = act(g, "p0", "draw");
+    const event = g.logs.find(l => l.cardEvent?.kind === "bomb");
+    assert(event, "抽弹必须有结构化公开事件");
+    assert.equal(event.cardEvent.actor, "p0");
+    assert.deepEqual(event.cardEvent.cards.map(c => c.type), ["bomb"]);
+    assert(!JSON.stringify(event).includes("future"));
+    if (hasDefuse) {
+      g = act(g, "p0", "defuse");
+      g = act(g, "p0", "insert", { position: 2 });
+    }
+    const after = { me: "p1", game: E.project(g, "p1") };
+    const bombs = U.motions(before, after).filter(e => e.card?.type === "bomb");
+    assert.equal(bombs.length, 1);
+    assert.equal(bombs[0].actor.id, "p0");
+    assert.equal(bombs[0].relationship, "猫0");
+    assert.equal(bombs[0].actionText, "抽到了炸弹猫！");
+    assert.equal(bombs[0].explosion, true);
+    assert.equal(bombs[0].target, null);
+    assert.equal(U.motions(after, after).length, 0);
+  }
+});
