@@ -869,7 +869,6 @@
 }
 .selected .card-spine {
   color: #0066cc;
-  background: #e1f0ff;
 }
 .card-check {
   display: none;
@@ -1282,3 +1281,17 @@ button.danger-primary {
 .board-center .piles { margin-top: 0; }
 .board-center .turn-label { position: absolute; top: calc(100% + 15rpx); left: 50%; transform: translateX(-50%); width: 390rpx; padding: 0; flex-direction: row; align-items: center; justify-content: center; gap: 11rpx; line-height: 1.2; }
 .board-center .turn-label > view + view { margin-top: 0; }
+
+/* Larger hand artwork and labels within the existing card footprint. */
+.hand .card-art { margin-left: 58rpx; width: calc(100% - 58rpx); height: 142rpx; border-radius: 15rpx; }
+.hand .compact-hand .card-art { height: 110rpx; }
+.hand-art-crop { position: absolute; top: 0; left: 50%; height: 100%; transform: translateX(-50%); overflow: hidden; }
+.hand .card-name, .hand .card-short { margin-left: 58rpx; width: calc(100% - 58rpx); }
+.hand .card-name { font-size: 26rpx; font-weight: 700; line-height: 1.15; margin-top: 6rpx; margin-bottom: 0; word-break: break-all; }
+.hand .card-short { font-size: 21rpx; line-height: 1.15; margin-top: 4rpx; color: #505361; }
+.hand .card-spine, .table-playing .card-spine { font-size: 28rpx; line-height: 1.2; padding: 11rpx 5rpx; }
+.card-spine.tone-cat { background: #efe7fa; }
+.card-spine.tone-defuse { background: #e6f3e2; }
+.card-spine.tone-nope { background: #fce5e8; }
+.card-spine.tone-attack { background: #fff0d8; }
+.card-spine.tone-other { background: #e6f1fc; }

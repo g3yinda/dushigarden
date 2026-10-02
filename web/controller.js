@@ -90,8 +90,18 @@
     const imploding = c.type === "imploding";
     const faceUp = c.faceUp === true;
     const [x, y, w, h] = crops[c.type] || crops.cat1;
+    const [hx, hy, hw, hh] = expansionIndex >= 0
+      ? [(expansionIndex % 3) * 512 + 24, Math.floor(expansionIndex / 3) * 512 + 72, 464, 416]
+      : [x, y, w, h];
+    const spineTone = /^cat[1-5]$/.test(c.type) || c.type === "feral" ? "cat"
+      : c.type === "defuse" ? "defuse" : c.type === "nope" ? "nope"
+      : ["attack", "targetAttack"].includes(c.type) ? "attack" : "other";
     return {
       ...c,
+      spineTone,
+      compactHand: ["targetAttack", "alterFuture"].includes(c.type),
+      handRatio: hw / hh,
+      handArt: `width:${153600 / hw}%;left:${-100 * hx / hw}%;top:0;transform:translateY(-${100 * hy / 1024}%);`,
       name: names[c.type] || c.type,
       description:
         (imploding

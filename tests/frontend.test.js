@@ -1102,3 +1102,17 @@ test('浏览器定时刷新保持不限时蓝色高亮，截止或响应后撤�
  assert(classes.has('awaiting'));assert(!classes.has('urgent'));
  r.game.pending.responses={a:'passed',b:'waiting'};r.revision++;await receiveNope(h,r);vm.runInContext('countdown()',h.context);assert(!classes.has('awaiting'));
 });
+
+
+test("手牌分类色保留普通猫与野猫、拆弹、否定及两种攻击的含义", () => {
+  for (const controller of [ui, require("../web/controller")]) {
+    for (const type of ["cat1", "cat2", "cat3", "cat4", "cat5", "feral"])
+      assert.equal(controller.card({id:type,type}).spineTone, "cat");
+    assert.equal(controller.card({id:"d",type:"defuse"}).spineTone, "defuse");
+    assert.equal(controller.card({id:"n",type:"nope"}).spineTone, "nope");
+    for (const type of ["attack", "targetAttack"])
+      assert.equal(controller.card({id:type,type}).spineTone, "attack");
+    for (const type of ["bomb", "imploding", "skip", "favor", "shuffle", "future", "reverse", "bottom", "alterFuture"])
+      assert.equal(controller.card({id:type,type}).spineTone, "other");
+  }
+});
