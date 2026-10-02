@@ -272,7 +272,7 @@ function tone() {
   } catch {}
 }
 function lobby() {
-  return `<div class="top"><div><div class="eyebrow">BOOMCAT · 和朋友一起</div><h1>朋友局</h1><p class="subtitle">和朋友，轻松开一局</p></div>${btn("⚙", "settings", "circle")}</div><div class="hero" role="img" aria-label="2–6 人炸弹猫，可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""><span class="hero-count">2–6 人</span></div><p class="hero-rules-note">2–5 人基础版 · 6 人完整内爆猫扩展</p><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div>${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}<div class="center space">${btn("玩法说明 ›", "rules", "text-btn")}</div><div class="center space muted small">2–6 人 · 私人好友房 · 最后存活的猫咪获胜</div>`;
+  return `<div class="home-lobby ${S.resume ? "has-resume" : ""}"><div class="hero home-hero"><div class="home-hero-art" role="img" aria-label="2–6 人炸弹猫，可爱的白色猫咪抱着炸弹，前方摆着拆弹、攻击和跳过卡牌"><img src="/ui.jpg" alt=""><span class="hero-count">2–6 人</span></div></div><p class="hero-rules-note">2–5 人基础版 · 6 人完整内爆猫扩展</p><div class="home-controls"><div class="identity">${btn(avatar({ avatar: S.avatar }), "profile", "avatar pick")}<input id="name" aria-label="你的昵称" maxlength="12" placeholder="给自己起个名字" value="${esc(S.name)}"></div><div class="home-actions">${S.resume ? btn("返回正在进行的对局", "resume") : ""}${btn("创建房间", "create")}${btn("加入房间", "join", "secondary")}</div></div><div class="home-footer">${btn("玩法说明 ›", "rules", "text-btn")}${btn("⚙", "settings", "circle", false, 'aria-label="设置"')}</div></div>`;
 }
 function waiting(r, v) {
   return `<div class="top">${btn("‹", "leave", "circle")}<h2>好友房</h2>${btn("⚙", "settings", "circle")}</div><div class="code"><span class="muted">房间号</span><strong>${esc(r.code)}</strong>${btn("复制房间号 ↗", "copy", "text-btn")}<p class="muted">把房间号分享给朋友，一起来玩吧！</p></div><p class="room-mode">${esc(v.rulesLabel)} · ${v.noTurnTimer ? "∞ 出牌不限时" : "出牌 30 秒"} · 否定 ${esc(v.nopeTimeLabel)}</p><div class="seats">${v.players.map((p) => `<div data-render-key="seat:${esc(p.id)}" class="seat">${avatar(p)}<strong>${esc(p.name)}${p.isBot ? " · Bot" : ""}${p.isMe ? " · 你" : ""}</strong><span class="${p.ready ? "ready" : "muted"}">${p.ready ? "✓ 已准备" : "◌ 等待准备"}${p.isHost ? " · 房主" : ""}</span>${v.isHost && !p.isMe ? btn("移出", "kick", "remove", false, `data-id="${esc(p.id)}"`) : ""}</div>`).join("")}${Array.from({ length: Math.max(0, 2 - v.players.length) }, () => '<div class="seat"><div class="avatar center" style="font-size:40px;padding-top:14px;color:#aab9c9">＋</div><span class="muted">等一位朋友</span></div>').join("")}</div>${btn("邀请朋友", "invite", "secondary")}${v.canAddBots ? btn("添加验证 Bot", "bots", "secondary") : ""}${btn(v.ready ? "取消准备" : "我准备好了", "ready", v.isHost ? "secondary" : "primary")}${v.isHost ? btn("开始游戏", "start", "primary", !v.canStart) : '<p class="center muted space">大家准备后，由房主开始游戏</p>'}<p class="center muted small space">${r.players.length}/6 人 · 每人 8 张起手牌</p>`;
@@ -346,7 +346,7 @@ function modal() {
       break;
     case "rules":
       title = "活到最后，就赢了";
-      body = `<ol><li>2–6 位朋友，每人 8 张牌，至少有 1 张拆弹。2–5 人用基础版，6 人加入完整内爆猫扩展。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>否定时长由建房时选择（15 / 10 / 5 秒，默认 10 秒），否定也能被否定，每次重新计时。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>六人扩展：内爆猫首次抽到翻面秘密插回，再次抽到直接出局；不能拆弹。定向攻击可指定自己，反转改变方向并免抽一个回合，抽牌底从底部抽牌，调整未来可秘密重排前三张。野猫只能替代普通猫组成组合。</p><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
+      body = `<ol><li>2–6 位朋友，每人 8 张牌，至少有 1 张拆弹。2–5 人用基础版，6 人加入完整内爆猫扩展。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>否定时长可选10、20、30秒或不限时，默认10秒。开启“可循环否定”后可反否定，每层独立响应。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>六人扩展：内爆猫首次抽到翻面秘密插回，再次抽到直接出局；不能拆弹。定向攻击可指定自己，反转改变方向并免抽一个回合，抽牌底从底部抽牌，调整未来可秘密重排前三张。野猫只能替代普通猫组成组合。</p><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
       break;
     case "play":
       title = v.selection.needsTarget ? v.targetLabel : "确认出牌";
@@ -374,11 +374,12 @@ function modal() {
 }
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
+  document.body.classList.toggle("home-page", !S.room);
   const r = S.room,
     v = U.derive(r, S.selected, S.localMode);
   const handScroll = $(".hand")?.scrollLeft || 0;
   const html =
-    `<div class="shell ${r?.game && r.game.phase !== "finished" ? "table-playing" : ""}">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}`;
+    `<div class="shell ${!r ? "home-shell" : ""} ${r?.game && r.game.phase !== "finished" ? "table-playing" : ""}">${!r ? lobby() : r.status === "aborted" ? `<h2>这局已中止</h2><p class="muted space">房间已结束，请返回大厅重新开局。</p>${btn("回大厅", "leave-submit")}` : r.game ? game(r, v) : waiting(r, v)}${S.error ? `<p class="error" role="alert">${esc(S.error)}</p>` : ""}<p class="connections center space">${esc(S.connection)}</p></div>${modal()}`;
   const app = $("#app");
   if (document.createElement && typeof BoomDOM !== "undefined") {
     const template = document.createElement("template");
@@ -438,6 +439,7 @@ document.addEventListener("change", (e) => {
     S.settings[e.target.id] = e.target.checked;
     localStorage.setItem("boom.settings", JSON.stringify(S.settings));
     document.body.classList.toggle("reduced", S.settings.reduced);
+  document.body.classList.toggle("home-page", !S.room);
   }
 });
 document.addEventListener("click", async (e) => {

@@ -82,6 +82,7 @@ Page({
         (this.data.room ? "?room=" + this.data.room.code : ""),
     };
   },
+  preventHomeScroll() {},
   onPullDownRefresh() {
     this.refresh().finally(() => wx.stopPullDownRefresh());
   },

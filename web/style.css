@@ -1425,3 +1425,24 @@ h3 {
 
 /* Highlight only a choice this player can still make; no pulsing or layout shift. */
 .nope-banner.awaiting { background: #eaf3ff; border-color: #0071e3; }
+
+body.home-page { overflow: hidden; overscroll-behavior-y: none; }
+
+/* The home fits the viewport; only artwork gives up space on short screens. */
+.home-shell { height: 100vh; height: 100dvh; min-height: 0; padding: 12px 18px max(16px, env(safe-area-inset-bottom)); overflow: hidden; position: relative; }
+.home-lobby { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.home-shell .home-hero { flex: 1; min-height: 0; height: auto; margin: 0; border-radius: 0; display: flex; align-items: center; justify-content: center; }
+.home-hero-art { position: relative; width: 100%; max-width: calc(86.4vh - 254px); max-width: calc(86.4dvh - 254px); aspect-ratio: 0.864; overflow: hidden; border-radius: 24px; flex-shrink: 0; }
+.has-resume .home-hero-art { max-width: calc(86.4vh - 305px); max-width: calc(86.4dvh - 305px); }
+.home-shell .hero-count { min-height: 0; height: 11%; font-size: clamp(12px, 4.2vw, 24px); border-radius: 8px; }
+.home-shell .hero-rules-note { flex-shrink: 0; margin: 8px 0 12px; font-size: 11px; line-height: 16px; }
+.home-controls { flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; }
+.home-shell .identity { height: 52px; gap: 12px; margin: 0; }
+.home-shell .identity .avatar { width: 52px; height: 52px; }
+.home-shell .identity input { height: 48px; box-sizing: border-box; padding: 12px 14px; font-size: 16px; }
+.home-actions { display: flex; flex-direction: column; gap: 10px; }
+.home-shell .home-actions button { min-height: 48px; height: 48px; margin: 0; padding: 10px 16px; font-size: 17px; display: flex; align-items: center; justify-content: center; }
+.home-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 14px; height: 44px; margin-top: 8px; }
+.home-footer .text-btn { min-height: 44px; margin: 0; padding: 0 12px; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.home-footer .circle { width: 44px; min-height: 44px; height: 44px; font-size: 22px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.home-shell > .connections, .home-shell > .connection { display: none; }
