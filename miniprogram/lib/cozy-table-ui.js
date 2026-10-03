@@ -5,6 +5,13 @@ const TONES = {cat:"#efe7fa",defuse:"#e6f3e2",nope:"#fce5e8",attack:"#fff0d8",ot
 const PAWS = {cat:"#bc9cde",defuse:"#a3ca92",nope:"#efa6ae",attack:"#eec275",other:"#a0c9ea",bomb:RED};
 const clamp = (n,a,b) => Math.max(a,Math.min(b,n));
 
+function fitSeatLabel(ui,value,size,weight,maxWidth) {
+  ui.font(size,weight);
+  let text=String(value);
+  while(text.length>1&&ui.ctx.measureText(text).width>maxWidth)text=text.slice(0,-2)+"…";
+  return {text,size,weight,width:ui.ctx.measureText(text).width};
+}
+
 function paw(ui,x,y,size,color) {
   const c=ui.ctx;c.save();c.fillStyle=color;
   for(const [dx,dy,rx,ry,rotation] of [[0,.17,.25,.22,0],[-.31,-.11,.12,.16,-.4],[-.12,-.32,.12,.16,-.15],[.13,-.32,.12,.16,.15],[.32,-.1,.12,.16,.4]]) {
@@ -79,9 +86,14 @@ function drawBoard(ui,y,h) {
     const match=p.seatStyle?.match(/left:([\d.]+)%;top:clamp\(52px,([\d.]+)%/);
     const px=match?Number(match[1]):50,py=match?Number(match[2]):i?10:90;
     const as=p.isMe?portrait+(tiny?0:compact?4:4):portrait;
-    const sw=p.isMe?Math.min(w-8,compact?128:as+116):compact?76:portrait+28;
+    const labelLimit=Math.min(w-8-as-8,compact?128-as-8:108);
+    const selfLabels=p.isMe?[
+      fitSeatLabel(ui,p.name+" · 你",compact?13:16,600,labelLimit),
+      fitSeatLabel(ui,!p.alive?"已出局":compact?`${v.phaseTitle}·${g.remaining}回合·${timer}`:p.count+" 张牌",compact?8:12,400,labelLimit),
+    ]:null;
+    const sw=p.isMe?as+8+Math.max(...selfLabels.map(label=>label.width)):compact?76:portrait+28;
     const labelH=tiny?0:compact?16:38,sh=p.isMe?as+4:as+3+labelH;
-    const sx=clamp(x+w*px/100-(p.isMe&&!compact?as/2:sw/2),x+3,x+w-sw-3);
+    const sx=clamp(x+w*px/100-sw/2,x+3,x+w-sw-3);
     let sy=p.isMe?y+h-sh-4:clamp(y+h*py/100-sh/2,y+4,y+h-sh-4);
     if(!p.isMe&&compact&&v.tablePlayers.length===5&&py===47)sy=Math.max(sy,y+portrait+labelH+11);
     const ax=p.isMe?sx:sx+(sw-as)/2;
@@ -93,8 +105,7 @@ function drawBoard(ui,y,h) {
       c.strokeStyle=BLUE;c.lineWidth=Math.min(5,as*.2);c.stroke();c.restore();
     }
     if(p.isMe) {
-      ui.text(p.name+" · 你",sx+as+8,sy+as*.36,compact?13:16,INK,"left",600,sw-as-8);
-      ui.text(!p.alive?"已出局":compact?`${v.phaseTitle}·${g.remaining}回合·${timer}`:p.count+" 张牌",sx+as+8,sy+as*.72,compact?8:12,MUTED,"left",400,sw-as-8);
+      selfLabels.forEach((label,j)=>ui.text(label.text,sx+as+8,sy+as*(j ? .72 : .36),label.size,j?MUTED:INK,"left",label.weight));
     } else if(!tiny) {
       const ly=sy+as+3;
       ui.box(sx,ly,sw,labelH,"rgba(255,255,255,.88)",null,compact?7:12);

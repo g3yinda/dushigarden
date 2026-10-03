@@ -1002,6 +1002,23 @@ test("cozy table keeps seats clear of both piles across 2–6 players and phone 
   }
 });
 
+test("local avatar and both painted text lines form one horizontally centered group", () => {
+  for(const [w,h] of [[320,568],[360,640],[390,688],[390,844],[430,932]])for(let n=2;n<=6;n++)for(const name of ["小白","小白和朋友一起玩的超长昵称abcdefgh"])for(const phase of ["action","nope"]) {
+    const x=harness(w,h),r=room(n,phase),labels=[];
+    let portrait;const avatar=x.ui.avatar.bind(x.ui);
+    x.ui.avatar=(p,ax,ay,size,...rest)=>{if(p.isMe)portrait={x:ax,y:ay,size};return avatar(p,ax,ay,size,...rest);};
+    x.ui.ctx.fillText=(text,tx,ty)=>labels.push({text,x:tx,y:ty,w:x.ui.ctx.measureText(text).width});
+    r.players[0].name=name;r.players[0].count=35;x.accept(r);
+    const lines=labels.filter(a=>Math.abs(a.x-(portrait.x+portrait.size+8))<1e-6&&(Math.abs(a.y-(portrait.y+portrait.size*.36))<1e-6||Math.abs(a.y-(portrait.y+portrait.size*.72))<1e-6));
+    assert.equal(lines.length,2);
+    const right=Math.max(...lines.map(a=>a.x+a.w));
+    assert(Math.abs((portrait.x+right)/2-w/2)<.01,`${w}x${h}, ${n} seats, ${name}, ${phase}: group center ${(portrait.x+right)/2} differs from table center ${w/2}`);
+    const seat=x.ui.layout.seats.find(s=>s.isMe);
+    assert(Math.abs(seat.x-portrait.x)<.01&&Math.abs(seat.x+seat.w-right)<.01,"seat geometry covers the actually painted avatar and labels");
+    assert(portrait.x>=x.ui.layout.table.x&&right<=x.ui.layout.table.x+x.ui.layout.table.w);
+  }
+});
+
 test("folded hand exposes names, illustrations and paws instead of vertical names only", () => {
   for(const [w,h] of [[320,568],[390,844],[430,932]]) {
     const x=harness(w,h),labels=[],arts=[];
