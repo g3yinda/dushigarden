@@ -117,11 +117,13 @@
   max-width: none;
 }
 .avatars {
-  display: flex;
-  gap: 22rpx;
-  justify-content: center;
-  margin: 40rpx 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 24rpx 8rpx;
+  justify-items: center;
+  margin: 32rpx 0;
 }
+.avatars .avatar { width:88rpx; height:88rpx; min-height:44px; padding:0; }
 .chosen {
   outline: 4rpx solid #0071e3;
   outline-offset: 4rpx;

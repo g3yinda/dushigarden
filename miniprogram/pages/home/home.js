@@ -6,6 +6,8 @@ const definition = {
     v: {},
     name: "",
     avatar: 0,
+    avatarUrl: "",
+    avatarSource: "ui.jpg",
     avatars: U.avatars,
     avatarStyle: U.avatars[0].style,
     selected: [],
@@ -42,11 +44,14 @@ const definition = {
   },
   onLoad(options) {
     this.token = wx.getStorageSync("boom.token");
-    let avatar = Number(wx.getStorageSync("boom.avatar") || 0);
+    const info = U.avatarInfo({ avatar: wx.getStorageSync("boom.avatar"), avatarUrl: wx.getStorageSync("boom.avatarUrl") });
+    let avatar = info.id;
     this.updateData({
       name: wx.getStorageSync("boom.name") || "",
       avatar,
-      avatarStyle: U.avatars[avatar].style,
+      avatarUrl: info.avatarUrl,
+      avatarSource: info.avatarSource,
+      avatarStyle: info.avatarStyle,
       settings: wx.getStorageSync("boom.settings") || {
         reduced: false,
         sound: false,
@@ -144,7 +149,10 @@ const definition = {
       await this.request("/profile", {
         name: this.data.name,
         avatar: this.data.avatar,
+        avatarUrl: this.data.avatarUrl,
       });
+      this.saveAvatar();
+      wx.setStorageSync("boom.name", this.data.name);
       return;
     }
     if (!this.data.name.trim()) throw Error("先给自己起个名字吧");
@@ -160,12 +168,24 @@ const definition = {
     const s = await this.request("/session", {
       name: this.data.name.trim(),
       avatar: this.data.avatar,
+      avatarUrl: this.data.avatarUrl,
       code,
     });
     this.token = s.token;
     wx.setStorageSync("boom.token", s.token);
     wx.setStorageSync("boom.name", this.data.name);
+    this.saveAvatar();
+  },
+  saveAvatar() {
     wx.setStorageSync("boom.avatar", this.data.avatar);
+    wx.setStorageSync("boom.avatarUrl", this.data.avatarUrl || "");
+  },
+  useWechatAvatar(value) {
+    const avatarUrl = U.normalizeWechatAvatar(value);
+    if (!avatarUrl) { this.notice("暂未获取到微信头像，请重试或选择猫狗头像"); return; }
+    const info = U.avatarInfo({ avatar: this.data.avatar, avatarUrl });
+    this.updateData({ avatarUrl, avatarSource: info.avatarSource, avatarStyle: info.avatarStyle, modal: "" });
+    this.saveAvatar();
   },
   accept(r) {
     if (!r) return;
@@ -473,10 +493,17 @@ const definition = {
       }
       if (a === "avatar") {
         this.updateData({
-          avatar: Number(id),
-          avatarStyle: U.avatars[Number(id)].style,
+          avatar: U.avatarInfo({ avatar: id }).id,
+          avatarUrl: "",
+          avatarSource: U.avatarInfo({ avatar: id }).avatarSource,
+          avatarStyle: U.avatarInfo({ avatar: id }).avatarStyle,
           modal: "",
         });
+        this.saveAvatar();
+        return;
+      }
+      if (a === "wechat-avatar") {
+        if (typeof wx.createUserInfoButton !== "function") this.notice("请在微信中选择微信头像");
         return;
       }
       if (a === "create-submit" || a === "join-submit") {

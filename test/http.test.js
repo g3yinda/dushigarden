@@ -394,3 +394,17 @@ test('HTTP独立扩展开关公开返回并拒绝非布尔',async(t)=>{
  const session=(await req('/api/session',{})).data;
  for(const allowNopeChain of ['false',null,0])assert.equal((await req('/api/rooms',{allowNopeChain},session.token)).status,400);
  });
+test('HTTP资料支持10个头像和微信头像，房间对手可见，非法来源拒绝',async t=>{
+  const req=await fixture(t);
+  const url='https://wx.qlogo.cn/mmopen/avatar-test/132';
+  const a=(await req('/api/session',{name:'小白',avatar:9,avatarUrl:url})).data;
+  assert.equal(a.player.avatar,9);assert.equal(a.player.avatarUrl,url);
+  let r=(await req('/api/rooms',{},a.token)).data;
+  const b=(await req('/api/session',{name:'小橘',avatar:5})).data;
+  r=(await req('/api/rooms/join',{code:r.code},b.token)).data;
+  assert.equal(r.players[0].avatarUrl,url);
+  assert.equal((await req('/api/profile',{avatarUrl:'https://evil.test/a.jpg'},a.token)).status,400);
+  assert.equal((await req('/api/profile',{avatar:8,avatarUrl:''},a.token)).data.avatar,8);
+  r=(await req('/api/rooms/current',null,b.token)).data;
+  assert.equal(r.players[0].avatar,8);assert.equal(r.players[0].avatarUrl,'');
+});

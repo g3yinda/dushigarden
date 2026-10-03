@@ -496,6 +496,7 @@ function project(g, id) {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      avatarUrl: p.avatarUrl || "",
       isBot: !!p.isBot,
       alive: p.alive,
       count: p.hand.length,

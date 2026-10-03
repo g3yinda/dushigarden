@@ -621,14 +621,14 @@ test("asynchronous atlas load schedules invalidation once and does not refetch",
     info: { windowWidth: 390, windowHeight: 844, pixelRatio: 3 },
     onInvalidate: () => invalidated++,
   });
-  assert.equal(created, 4);
+  assert.equal(created, 5);
   im.onload();
   assert.equal(invalidated, 1);
   assert(ui.needsFrame());
   ui.render(10);
   assert.equal(ui.needsFrame(), false);
   ui.render(11);
-  assert.equal(created, 4);
+  assert.equal(created, 5);
   ui.destroy();
   assert.equal(im.onload, null);
 });
@@ -1121,4 +1121,23 @@ test("a wider turn ring follows the active opponent and disappears when the game
     assert(a[1]-a[2]-ring.width/2>=seat.y,"highlight stays inside avatar footprint");
     rings.length=0;r.game.phase="finished";x.accept(r);assert.equal(rings.length,0);
   }
+});
+
+test('十个动物头像及微信入口在五种手机尺寸下一屏显示，点击目标44px且不重叠',()=>{
+  for(const [w,h] of [[320,412],[320,568],[360,640],[390,844],[430,932]]) {
+    const x=harness(w,h);x.page.data.modal='profile';x.ui.render(1000);
+    const regions=x.ui.layout.regions.filter(r=>r.action==='avatar');assert.equal(regions.length,10);
+    assert.equal(x.ui.layout.scroll.max,0);
+    const button=x.ui.layout.regions.find(r=>r.action==='wechat-avatar');assert(button&&button.h>=44);
+    for(const r of regions){assert(r.w>=44&&r.h>=44);assert(r.y>=x.ui.layout.modalRect.y+48);assert(r.y+r.h<=button.y);}
+    assert(button.y+button.h<=x.ui.layout.modalRect.y+x.ui.layout.modalRect.h-8);
+    assert.deepEqual(x.ui.layout.wechatAvatarButton,{x:button.x,y:button.y,w:button.w,h:button.h});
+  }
+});
+test('新动物图集和微信头像按来源缓存，重复点击不闪烁，失败回退猫咪',()=>{
+  const x=harness();x.page.data.avatar=9;x.page.data.avatarStyle=U.avatarInfo({avatar:9}).avatarStyle;
+  x.ui.render(1000);assert(x.images.some(i=>i.path==='assets/pets-v1.jpg'));
+  const url='https://wx.qlogo.cn/mmopen/x/132';x.page.data.avatarUrl=url;x.ui.render(1000);x.ui.render(1000);
+  assert.equal(x.images.filter(i=>i.path===url).length,1);
+  x.images.find(i=>i.path===url).onerror();assert.doesNotThrow(()=>x.ui.render(1000));
 });

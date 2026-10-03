@@ -1,4 +1,5 @@
 "use strict";
+const {createWechatAvatarButton} = require("./wechat-avatar");
 
 function applyData(data, patch) {
   for (const [key, value] of Object.entries(patch)) {
@@ -20,6 +21,7 @@ function createGameRuntime({ wx, definition, Renderer, schedule, cancel }) {
     ? cancelAnimationFrame(id) : clearTimeout(id);
   const canvas = wx.createCanvas();
   const page = { ...definition, data: JSON.parse(JSON.stringify(definition.data)) };
+  const avatarButton = createWechatAvatarButton({wx, page});
   let visible = true, destroyed = false, frame = null, ui, inputField = null;
   const subscriptions = [];
   function windowInfo() {
@@ -40,10 +42,13 @@ function createGameRuntime({ wx, definition, Renderer, schedule, cancel }) {
       frame = null;
       if (!visible || destroyed) return;
       ui.render(Date.now());
+      avatarButton.sync(ui.layout?.wechatAvatarButton);
       if (ui.needsFrame()) invalidate();
     });
   }
-  page.setData = patch => { applyData(page.data, patch); invalidate(); };
+  page.setData = patch => { applyData(page.data, patch);
+    if (page.data.modal !== "profile" || page.data.busy) avatarButton.hide();
+    invalidate(); };
   function keyboardValue(event) {
     if (!inputField) return;
     let value = String(event.value || "");
@@ -72,6 +77,7 @@ function createGameRuntime({ wx, definition, Renderer, schedule, cancel }) {
   function hide() {
     if (!visible || destroyed) return;
     visible = false;
+    avatarButton.hide();
     page.onHide();
     ui.touchCancel?.();
     if (frame !== null) { cancel(frame); frame = null; }
@@ -109,6 +115,7 @@ function createGameRuntime({ wx, definition, Renderer, schedule, cancel }) {
       if (destroyed) return;
       hide();
       destroyed=true;
+      avatarButton.destroy();
       for (const [name,callback] of subscriptions) wx["off"+name]?.(callback);
       page.onUnload();
       ui.destroy();

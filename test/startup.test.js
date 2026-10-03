@@ -16,6 +16,7 @@ test("普通服务启动端口冲突时不能覆盖已经可用的手机配置",
     "server/bots.js",
     "server/debug-access.js",
     "shared/cards.js",
+    "shared/player-profile.js",
     "tools/client-config.js",
   ]) {
     const target = path.join(temp, file);

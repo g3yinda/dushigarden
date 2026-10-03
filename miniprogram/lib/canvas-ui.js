@@ -62,7 +62,7 @@ class CanvasUI {
     this.destroyed = false;
     this.imageDirty = false;
     this.resize(info);
-    for (const name of ["ui.jpg", "core.jpg", "cats.jpg", "expansion.jpg"])
+    for (const name of ["ui.jpg", "core.jpg", "cats.jpg", "expansion.jpg", "pets-v1.jpg"])
       this.image(name);
   }
   resize(info) {
@@ -97,11 +97,12 @@ class CanvasUI {
       this.invalidate();
     };
     image.onerror = () => {
+      entry.ready = false;
       entry.error = true;
       this.imageDirty = true;
       this.invalidate();
     };
-    image.src = "assets/" + name;
+    image.src = U.normalizeWechatAvatar(name) || "assets/" + name;
     return entry;
   }
   path(x, y, w, h, r = 16) {
@@ -283,31 +284,26 @@ class CanvasUI {
     this.ctx.save();
     if (p?.alive === false) this.ctx.globalAlpha = 0.45;
     this.box(x, y, size, size, "#fff6e8", active ? C.blue : C.line, size / 2);
-    const id = Number(p?.avatar ?? p?.id ?? 0) % 4;
-    const style = p?.avatarStyle || U.avatars[id]?.style || U.avatars[0].style;
-    const pct = (k) =>
-      Number(style.match(new RegExp(k + ":(-?[\\d.]+)%"))?.[1] || 0);
-    const width = pct("width");
-    const image = this.image("ui.jpg");
-    if (image?.ready && width > 0) {
-      const iw = image.image.width || 1536,
-        scale = (size * width) / 100 / iw;
-      const sx = (-pct("left") * size) / 100 / scale,
-        sy = (-pct("top") * size) / 100 / scale;
-      this.crop(
-        "ui.jpg",
-        sx,
-        sy,
-        size / scale,
-        size / scale,
-        x + 2,
-        y + 2,
-        size - 4,
-        size - 4,
-        size / 2,
-      );
-    } else
-      this.text("🐱", x + size / 2, y + size / 2, size * 0.55, C.ink, "center");
+    let info = U.avatarInfo(p);
+    const remote = !!info.avatarUrl;
+    let entry = this.image(info.avatarSource);
+    let painted = false;
+    if (remote && entry?.ready) {
+      const iw = entry.image.width || 132, ih = entry.image.height || iw, side = Math.min(iw,ih);
+      painted = this.crop(info.avatarSource,(iw-side)/2,(ih-side)/2,side,side,x+2,y+2,size-4,size-4,size/2);
+    } else {
+      if (remote) info = U.avatarInfo({avatar:p?.avatar});
+      const style = info.avatarStyle;
+      const pct = k => Number(style.match(new RegExp(k + ":(-?[\\d.]+)%"))?.[1] || 0);
+      const width = pct("width");
+      entry = this.image(info.avatarSource);
+      if (entry?.ready && width > 0) {
+        const iw = entry.image.width || 1536, sw = iw * 100 / width;
+        painted = this.crop(info.avatarSource,-pct("left")*sw/100,-pct("top")*sw/100,sw,sw,
+          x+2,y+2,size-4,size-4,size/2);
+      }
+    }
+    if (!painted) this.text(info.kind === "dog" ? "🐶" : "🐱", x+size/2,y+size/2,size*.55,C.ink,"center");
     this.ctx.restore();
   }
   cardArt(card, x, y, w, h) {
@@ -591,7 +587,7 @@ class CanvasUI {
       "center",
     );
     this.avatar(
-      { avatar: d.avatar, avatarStyle: d.avatarStyle },
+      { avatar: d.avatar, avatarUrl: d.avatarUrl },
       x,
       identityY,
       52,
@@ -1133,7 +1129,7 @@ class CanvasUI {
     if (m === "phase-choice" || m === "play")
       return Choices.renderChoice(this, m);
     const w = this.w - 32;
-    let preferredHeight = m === "create" ? 456 : 620;
+    let preferredHeight = m === "create" ? 456 : m === "profile" ? 316 : 620;
     if (m === "bots") {
       const paragraphHeight = (text, size) =>
         this.lines(text, w - 36, size).length * 22 + 12;
@@ -1164,7 +1160,7 @@ class CanvasUI {
     const titles = {
       create: "一起开一局",
       detail: d.v?.detail?.name || "卡牌详情",
-      profile: "选一只代表你的猫",
+      profile: "选择你的头像",
       join: "加入朋友的房间",
       bots: "添加验证 Bot",
       settings: "按你的习惯",
@@ -1261,23 +1257,21 @@ class CanvasUI {
         p(d.v.detail.description, 15, C.ink);
       }
       if (m === "profile") {
-        (d.avatars || U.avatars).forEach((avatar, i) => {
-          const col = i % 2,
-            row = Math.floor(i / 2),
-            cw = pw / 2;
-          const ax = px + col * cw + (cw - 72) / 2,
-            ay = cy + row * 118;
-          this.avatar(
-            { avatar: avatar.id, avatarStyle: avatar.style },
-            ax,
-            ay,
-            72,
-            d.avatar === avatar.id,
-          );
-          this.text(avatar.name, ax + 36, ay + 88, 14, C.ink, "center", 600);
-          this.region("avatar", px + col * cw, ay, cw, 108, { id: avatar.id });
+        // Five columns keep ten choices and the native WeChat button in one screen.
+        const options = d.avatars || U.avatars;
+        const cw = pw / 5, size = Math.min(60, cw-4);
+        const rowHeight = size + 24;
+        options.forEach((avatar, i) => {
+          const ax = px + (i % 5) * cw + (cw-size)/2;
+          const ay = cy + Math.floor(i/5) * rowHeight;
+          this.avatar({avatar:avatar.id},ax,ay,size,!d.avatarUrl && d.avatar === avatar.id);
+          this.text(avatar.name,ax+size/2,ay+size+10,12,C.ink,"center",600);
+          this.region("avatar",px+(i%5)*cw,ay,cw,rowHeight,{id:avatar.id});
         });
-        cy += Math.ceil((d.avatars || U.avatars).length / 2) * 118;
+        cy += Math.ceil(options.length/5)*rowHeight + 12;
+        this.button(d.avatarUrl ? "已使用微信头像 · 更换" : "使用微信头像", "wechat-avatar", px,cy,pw,48);
+        this.layout.wechatAvatarButton = {x:px,y:cy,w:pw,h:48};
+        cy += 48;
       }
       if (m === "join") {
         p("六位房间号");

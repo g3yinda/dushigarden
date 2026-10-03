@@ -81,3 +81,12 @@ test("热启动邀请使用query，分享使用固定公开图片而非手牌截
   assert.equal(share.query,"room=123456");assert.equal(share.path,undefined);
   assert.equal(share.imageUrl,"assets/share.png");h.runtime.destroy();
 });
+test('运行桥在资料窗口绘制后接入原生头像按钮并在关闭/后台立即移除',()=>{
+  const h=harness(),created=[];
+  h.wx.createUserInfoButton=o=>{const b={options:o,onTap(f){this.tap=f},destroy(){this.dead=true}};created.push(b);return b;};
+  h.runtime.ui.layout={wechatAvatarButton:{x:34,y:330,w:322,h:48}};
+  h.runtime.page.updateData({modal:'profile'});h.flush();assert.equal(created.length,1);
+  h.runtime.page.updateData({modal:''});assert(created[0].dead);
+  h.runtime.page.updateData({modal:'profile'});h.flush();assert.equal(created.length,2);
+  h.events.Hide();assert(created[1].dead);h.runtime.destroy();
+});

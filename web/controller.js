@@ -49,11 +49,27 @@
     nope: "响应期间取消一个效果，也可以否定上一张否定；不能否定抽牌、炸弹或拆弹。",
   };
   const avatars = [
-    { id: 0, name: "奶油", style: "width:1059.3%;left:-400%;top:-219.3%;" },
-    { id: 1, name: "桃桃", style: "width:1059.3%;left:-558.6%;top:-219.3%;" },
-    { id: 2, name: "橘子", style: "width:1059.3%;left:-400%;top:-379.3%;" },
-    { id: 3, name: "乌云", style: "width:1059.3%;left:-558.6%;top:-379.3%;" },
+    { id: 0, name: "奶油", kind: "cat", style: "width:1059.3%;left:-400%;top:-219.3%;" },
+    { id: 1, name: "桃桃", kind: "cat", style: "width:1059.3%;left:-558.6%;top:-219.3%;" },
+    { id: 2, name: "橘子", kind: "cat", style: "width:1059.3%;left:-400%;top:-379.3%;" },
+    { id: 3, name: "乌云", kind: "cat", style: "width:1059.3%;left:-558.6%;top:-379.3%;" },
   ];
+  avatars.push(...["雪团", "栗子", "布丁", "豆豆", "棉花", "可可"].map((name, i) => ({
+    id: i + 4, name, kind: i < 2 ? "cat" : "dog", source: "pets-v1.jpg",
+    style: `width:300%;left:${-(i % 3) * 100}%;top:${-Math.floor(i / 3) * 100}%;`,
+  })));
+  // No browser URL dependency: supported by the standalone WeChat game runtime.
+  function normalizeWechatAvatar(value) {
+    if (typeof value !== "string" || value.length > 2048) return "";
+    return /^https?:\/\/(?:wx|thirdwx)\.qlogo\.cn\/(?:mmopen|mmhead)\/[A-Za-z0-9_./%?=&+-]+$/.test(value)
+      ? value.replace(/^http:/, "https:") : "";
+  }
+  function avatarInfo(p = {}) {
+    const n = Number(p.avatar ?? 0), a = avatars[Number.isInteger(n) && n >= 0 && n < avatars.length ? n : 0];
+    const url = normalizeWechatAvatar(p.avatarUrl);
+    return { ...a, avatarUrl: url, avatarSource: url || a.source || "ui.jpg",
+      avatarStyle: url ? "width:100%;left:0%;top:0%;" : a.style };
+  }
   const crops = {
     bomb: [40, 130, 333, 252],
     defuse: [415, 130, 333, 252],
@@ -193,7 +209,8 @@
     const ps = (g ? g.players : r.players).map((p) => ({
       ...p,
       isBot: !!(p.isBot ?? r.players.find((seat) => seat.id === p.id)?.isBot),
-      avatarStyle: avatars[Number(p.avatar) % 4]?.style || avatars[0].style,
+      avatarSource: avatarInfo(p).avatarSource,
+      avatarStyle: avatarInfo(p).avatarStyle,
       isMe: p.id === id,
       isHost: p.id === r.hostId,
       active: g && p.id === g.current,
@@ -394,7 +411,8 @@
       const seat = r.players?.find(p => p.id === id), p = r.game.players.find(p => p.id === id);
       if (!p && !seat) return null;
       const avatar = Number(p?.avatar ?? seat?.avatar ?? 0);
-      return { id, name: p?.name || seat?.name || "玩家", avatar, avatarStyle: avatars[avatar % 4]?.style || avatars[0].style };
+      const info = avatarInfo({ avatar, avatarUrl: p?.avatarUrl ?? seat?.avatarUrl });
+      return { id, name: p?.name || seat?.name || "玩家", avatar, avatarUrl: info.avatarUrl, avatarSource: info.avatarSource, avatarStyle: info.avatarStyle };
     }
     const actor = publicPlayer(event.actor), target = publicPlayer(event.target);
     const labels = [...new Set(event.cards.map(c => names[c.type] || c.type))].join(" + ");
@@ -563,6 +581,8 @@
     futureOrder,
     moveFuture,
     avatars,
+    avatarInfo,
+    normalizeWechatAvatar,
     selection,
     derive,
     me,
