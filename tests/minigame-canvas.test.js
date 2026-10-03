@@ -326,23 +326,32 @@ test("modal backdrop prevents clickthrough and settings/rules retain reachable c
   x.tap(x.find("close"));
   assert.equal(x.page.data.modal, "");
 });
-test("three-card target modal selects avatar then opens nested named picker", () => {
-  const x = harness();
-  x.accept(room(), ["c2", "c3", "c4"]);
-  x.page.data.modal = "play";
-  x.ui.render();
-  assert(x.reach("play").disabled);
-  x.tap(x.reach("target", "p1"));
-  assert.equal(x.page.data.target, "p1");
-  x.tap(x.reach("picker"));
-  assert.equal(x.ui.layout.modal, "picker");
-  const option = x.ui.layout.regions.find(
-    (r) => r.action === "pick-option" && r.index === 1,
-  );
-  x.tap(option);
-  assert.equal(x.page.data.namedIndex, 1);
-  assert.equal(x.page.data.modal, "play");
-  assert(!x.reach("play").disabled);
+test("three-card combo chooses player and every card name in the same non-scrolling dialog", () => {
+  for (const [w,h] of [[320,412],[320,568],[390,844],[430,932]]) {
+    const x=harness(w,h);x.accept(room(),["c2","c3","c4"]);
+    x.page.data.modal="play";x.ui.render();
+    assert(x.find("choice-tab").disabled);
+    x.tap(x.find("target","p1"));x.tap(x.find("choice-tab"));
+    assert.equal(x.ui.layout.modal,"play");assert.equal(x.ui.picker,null);
+    const box={...x.ui.layout.modalRect};
+    const seen=new Set();
+    for(let page=0;page<Math.ceil(x.page.data.namedOptions.length/6);page++) {
+      for(const option of x.ui.layout.regions.filter(r=>r.action==="choice-named")) {
+        assert(option.h>=44-1e-6 && option.w>=44);
+        assert(option.y>=box.y && option.y+option.h<=box.y+box.h);
+        x.tap(option);seen.add(option.index);assert.equal(x.page.data.namedIndex,option.index);
+      }
+      const next=x.ui.layout.regions.find(r=>r.action==="choice-page"&&r.step===1);
+      if(!next.disabled)x.tap(next);
+      assert.equal(x.ui.layout.scroll.max,0);assert.deepEqual(x.ui.layout.modalRect,box);
+    }
+    assert.equal(seen.size,x.page.data.namedOptions.length);
+    assert(!x.find("play").disabled);
+    x.tap(x.find("choice-tab"));assert(x.find("target","p1"));
+    x.tap(x.find("choice-tab"));x.tap(x.find("play"));
+    assert.equal(x.calls.at(-1).action,"play");assert.equal(x.calls.at(-1).target,"p1");
+    assert.equal(x.calls.at(-1).named,x.page.data.named);
+  }
 });
 for (const [phase, control] of [
   ["future", "closeFuture"],
@@ -371,22 +380,19 @@ for (const [phase, control] of [
     x.accept(r);
     assert(!x.find(control));
   });
-test("position picker scrolls all deck positions and commits through choosePosition", () => {
-  const x = harness();
-  x.accept(room(6, "insert"));
-  x.tap(x.find("picker"));
-  assert.equal(x.ui.layout.modal, "picker");
-  const last = x.ui.layout.scroll.max;
-  assert(last > 0);
-  x.ui.modalScroll = last;
-  x.ui.render();
-  const option = x.ui.layout.regions.find(
-    (r) => r.action === "pick-option" && r.index === 20,
-  );
-  assert(option);
-  x.tap(option);
-  assert.equal(x.page.data.position, 21);
-  assert.equal(x.ui.layout.modal, "");
+test("position stepper reaches all deck positions and shortcuts in one dialog", () => {
+  const x=harness(320,412),r=room(6,"insert");r.game.deckCount=67;x.accept(r);
+  const at=(index)=>x.ui.layout.regions.find(b=>b.action==="choice-position"&&b.index===index);
+  const plus=()=>x.ui.layout.regions.filter(b=>b.action==="choice-position")[1];
+  const minus=()=>x.ui.layout.regions.filter(b=>b.action==="choice-position")[0];
+  assert(minus().disabled);
+  for(let i=1;i<=67;i++) {x.tap(plus());assert.equal(x.page.data.position,i+1);}
+  assert(plus().disabled);x.tap(minus());assert.equal(x.page.data.position,67);
+  x.tap(at(0));assert.equal(x.page.data.position,1);
+  x.tap(at(67));assert.equal(x.page.data.position,68);
+  x.tap(at(-1));assert(x.page.data.position>=1&&x.page.data.position<=68);
+  assert.equal(x.ui.layout.scroll.max,0);assert.equal(x.ui.picker,null);
+  x.tap(x.find("insert"));assert.equal(x.calls.at(-1).position,x.page.data.position);
 });
 test("leave and room-close preserve two confirmation levels", () => {
   const x = harness();
@@ -432,7 +438,7 @@ test("motion renders cached art, entrance exit and explosion; reduced mode needs
   x.ui.destroy();
   assert.equal(x.ui.needsFrame(), false);
 });
-test("vertical gesture scrolls long private content without triggering the pressed action", () => {
+test("vertical gesture cannot scroll a private dialog or trigger the pressed action", () => {
   const x = harness(320, 568);
   const r = room(6, "alterFuture");
   r.game.future = [
@@ -450,7 +456,8 @@ test("vertical gesture scrolls long private content without triggering the press
   x.ui.touchMove({ touches: [{ clientX: sx, clientY: sy - 100 }] });
   x.ui.touchEnd({ changedTouches: [{ clientX: sx, clientY: sy - 100 }] });
   x.ui.render(1000);
-  assert.equal(x.ui.pageScroll, 100);
+  assert.equal(x.ui.pageScroll, 0);
+  assert.equal(x.ui.modalScroll, 0);
   assert.equal(x.ui.layout.dock.y, dockY);
   assert.equal(x.ui.layout.hand.y, handY);
   assert.equal(x.calls.length, 0);
@@ -466,18 +473,16 @@ test("touch cancellation prevents a later end event from selecting a card", () =
   x.ui.touchEnd({ changedTouches: [p] });
   assert.equal(x.page.data.selected.length, 0);
 });
-test("nested picker closes without losing parent modal and rejects changes after phase update", () => {
-  const x = harness();
-  x.accept(room(3, "insert"));
-  x.tap(x.find("picker"));
-  x.tap(x.find("picker-close"));
-  assert.equal(x.page.data.modal, "");
-  assert.equal(x.ui.picker, null);
-  x.tap(x.find("picker"));
-  const r = room(3, "action");
-  x.accept(r);
-  assert.equal(x.ui.picker, null);
-  assert(!x.find("pick-option"));
+test("private dialog yields to persistent exit confirmation and rejects stale phase gestures", () => {
+  const x=harness();x.accept(room(3,"defuse"));
+  const button=x.find("defuse"),p={clientX:button.x+20,clientY:button.y+20};
+  x.ui.touchStart({touches:[p]});x.accept(room(3,"insert"));
+  x.ui.touchEnd({changedTouches:[p]});assert.equal(x.calls.length,0);
+  x.tap(x.find("leave"));assert.equal(x.page.data.modal,"leave");
+  x.accept(room(3,"action"));assert.equal(x.ui.layout.modal,"leave");
+  x.accept(room(3,"future"));assert.equal(x.ui.layout.modal,"leave");
+  x.tap(x.find("close"));assert.equal(x.ui.layout.modal,"phase-choice");
+  x.accept(room(3,"action"));assert.equal(x.ui.layout.modal,"");assert(x.find("draw"));
 });
 test("bots picker and switch preserve real add-Bot state", () => {
   const x = harness();
@@ -726,7 +731,7 @@ test("fixed game zones keep the whole hand visible and stable through phases and
       x.accept(r, ["c0"]);
       assert.equal(x.ui.layout.hand.y, initial.y, phase+" must not push hand down");
       assert.deepEqual(x.ui.layout.table, table);
-      assert(x.find("card", "c0"));
+      assert.equal(!!x.find("card", "c0"), ["nope","favor"].includes(phase));
     }
     const r=room();r.game.deckTop={type:"imploding",faceUp:true};r.game.logs=[{text:"玩家抽到了炸弹猫"}];
     x.accept(r,["c0","c1"]);
@@ -772,4 +777,104 @@ test("fixed hand still exposes card details and settings exposes preserved match
   assert.equal(x.page.data.modal, "history");
   assert.deepEqual(r.game.privateLog, [{text: "你看到了牌顶"}]);
   assert.deepEqual(r.game.logs, [{text: "猫咪1打出了攻击"}]);
+});
+
+test("being asked for a card only highlights the fixed hand, without covering the table", () => {
+  for (const [w,h] of [[320,568],[390,844],[430,932]]) {
+    const x=harness(w,h); x.accept(room());
+    const handY=x.ui.layout.hand.y;
+    const r=room(6,"favor");r.game.pending.actor="p1";
+    x.accept(r,["c0"]);
+    assert.equal(x.ui.layout.modal, "");
+    assert.equal(x.ui.layout.privatePanel, null);
+    assert.equal(x.ui.layout.hand.y,handY);
+    assert.equal(x.ui.layout.hand.giving,true);
+    assert(x.find("card","c0"));
+    assert(x.find("give") && !x.find("give").disabled);
+    x.tap(x.find("give"));
+    assert.equal(x.calls.at(-1).action,"give");
+    assert.equal(x.calls.at(-1).cardId,"c0");
+  }
+});
+
+test("mandatory private choices fit one independent dialog on every supported screen", () => {
+  for (const [w,h] of [[320,412],[320,568],[390,844],[430,932]]) {
+    for (const [phase,action] of [["future","closeFuture"],["alterFuture","orderFuture"],["defuse","defuse"],["insert","insert"]]) {
+      const x=harness(w,h),r=room(6,phase);
+      r.game.future=[{id:"f1",type:"bomb"},{id:"f2",type:"alterFuture"},{id:"f3",type:"targetAttack"}];
+      x.accept(r);
+      assert.equal(x.ui.layout.modal,"phase-choice");
+      assert.equal(x.ui.layout.scroll.max,0);
+      assert(x.find(action),phase+" main control visible without scrolling");
+      assert(!x.find("draw") && !x.find("card","c0"),"backdrop blocks underlying controls");
+      const box=x.ui.layout.modalRect;
+      for (const b of x.ui.layout.regions) {
+        assert(b.y>=box.y && b.y+b.h<=box.y+box.h,phase+" control fits");
+        assert(b.h>=44-1e-6 && b.w>=44-1e-6,JSON.stringify({w,h,phase,b}));
+      }
+    }
+  }
+});
+
+test("favor hand selection replaces the previous choice and keeps the table unobstructed", () => {
+  const x=harness();x.accept(room(6,"favor"));
+  assert(x.find("give").disabled);x.tap(x.find("card","c0"));
+  x.tap(x.find("card","c1"));assert.deepEqual(x.page.data.selected,["c1"]);
+  assert(!x.find("give").disabled);x.tap(x.find("card","c1"));
+  assert.deepEqual(x.page.data.selected,[]);assert(x.find("give").disabled);
+  assert.equal(x.ui.layout.modal,"");assert.equal(x.ui.layout.privatePanel,null);
+});
+
+test("leave and close-room choices keep every action visible without scrolling on a short screen", () => {
+  const x=harness(320,412);x.accept(room());x.tap(x.find("leave"));
+  assert.equal(x.ui.layout.scroll.max,0);
+  for(const b of x.ui.layout.regions) assert(b.y>=x.ui.layout.modalRect.y&&b.y+b.h<=x.ui.layout.modalRect.y+x.ui.layout.modalRect.h);
+  assert(x.find("leave-submit")?.h>=44&&x.find("close-room")?.h>=44);
+  x.tap(x.find("close-room"));assert.equal(x.ui.layout.scroll.max,0);assert(x.find("close-room-submit"));
+});
+
+test("compact selected hand cards stay below the title controls during favor", () => {
+  const x=harness(320,568);x.accept(room(6,"favor"),["c0"]);
+  const card=x.find("card","c0"),toggle=x.find("hand-toggle"),detail=x.find("detail");
+  assert(card.y>=toggle.y+36&&card.y>=detail.y+36,"selected card must clear title pills");
+});
+
+test("favor recipient can give a card when someone else owns the turn", () => {
+  const x=harness();const r=room(6,"favor");r.game.current="p1";r.game.pending.actor="p1";
+  x.accept(r);assert(!x.page.data.v.turn);assert.equal(x.ui.layout.modal,"");
+  x.tap(x.find("card","c0"));assert(!x.find("give").disabled);x.tap(x.find("give"));
+  assert.deepEqual(x.calls.at(-1),{action:"give",cardId:"c0"});
+});
+
+test("future dialog shows complete expansion card names even at 320 px width", () => {
+  const x=harness(320,412),r=room(6,"future"),labels=[];
+  r.game.future=[{id:"f1",type:"bomb"},{id:"f2",type:"alterFuture"},{id:"f3",type:"targetAttack"}];
+  x.ui.ctx.fillText=(text)=>labels.push(text);
+  x.ui.ctx.measureText=(text)=>({width:Array.from(String(text)).length*12});x.accept(r);
+  const painted=labels.join("").replace(/\s/g,"");
+  for(const c of r.game.future) assert(painted.includes(U.card(c).name.replace(/\s/g,"")),"full card name: "+c.type);
+});
+
+test("reopening a three-card combo restarts target selection instead of retaining its named step", () => {
+  const x=harness();x.accept(room(),["c2","c3","c4"]);x.tap(x.find("prepare"));
+  x.tap(x.find("target","p1"));x.tap(x.find("choice-tab"));assert(x.find("choice-named"));
+  x.tap(x.find("close"));x.tap(x.find("prepare"));
+  assert(x.find("target","p1"));assert(!x.find("choice-named"));assert.equal(x.page.data.target,"");
+});
+
+test("targeted attack keeps all six targets visible and can submit self in one dialog", () => {
+  for(const [w,h] of [[320,412],[320,568],[390,844],[430,932]]) {
+    const x=harness(w,h);x.accept(room(),["c6"]);x.tap(x.find("prepare"));
+    assert.equal(x.ui.layout.regions.filter(r=>r.action==="target").length,6);
+    assert.equal(x.ui.layout.scroll.max,0);x.tap(x.find("target","p0"));
+    assert(!x.find("play").disabled);x.tap(x.find("play"));
+    assert.equal(x.calls.at(-1).target,"p0");assert.equal(x.calls.at(-1).action,"play");
+  }
+});
+
+test("compact reorder buttons submit the exact chosen future permutation", () => {
+  const x=harness(320,412),r=room(6,"alterFuture");
+  r.game.future=[{id:"f1",type:"bomb"},{id:"f2",type:"skip"},{id:"f3",type:"nope"}];
+  x.accept(r);x.tap(x.find("future-down","f1"));x.tap(x.find("orderFuture"));
+  assert.deepEqual(JSON.parse(JSON.stringify(x.calls.at(-1))),{action:"orderFuture",order:["f2","f1","f3"]});
 });

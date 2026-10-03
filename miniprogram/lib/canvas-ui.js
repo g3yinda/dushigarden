@@ -1,4 +1,5 @@
 const U = require("./controller");
+const Choices = require("./game-choice-ui");
 const C = {
   bg: "#f5f5f7",
   white: "#ffffff",
@@ -358,7 +359,10 @@ class CanvasUI {
     if (hand) {
       this.box(x + 3, y + 6, 23, h - 12, tone, null, 9);
       let name = card.name.replace(/ ×/g, "");
-      const spineStep = Math.min(15, (h - 24) / Math.max(1, Array.from(name).length - 1));
+      const spineStep = Math.min(
+        15,
+        (h - 24) / Math.max(1, Array.from(name).length - 1),
+      );
       Array.from(name).forEach((ch, i) =>
         this.text(
           ch,
@@ -373,7 +377,9 @@ class CanvasUI {
     }
     const small = h < 100;
     const artH =
-      card.compactHand && hand ? Math.min(58, h * 0.44) : Math.max(28, h * (small ? 0.44 : 0.53));
+      card.compactHand && hand
+        ? Math.min(58, h * 0.44)
+        : Math.max(28, h * (small ? 0.44 : 0.53));
     this.cardArt(card, x + spine + 5, y + 6, w - spine - 10, artH);
     if (card.symbol)
       this.text(card.symbol, x + w - 13, y + 16, 15, C.blue, "center", 600);
@@ -460,9 +466,12 @@ class CanvasUI {
       this.motionKey !== (effect.renderId ?? effect)
     )
       this.pageScroll = 0;
-    const modalKey = this.picker ? "picker" : d.modal || "";
+    const modalKey = this.picker
+      ? "picker"
+      : d.modal || (Choices.phaseChoice(d) ? "phase-choice" : "");
     if (this.lastModal !== modalKey) {
       this.modalScroll = 0;
+      if (modalKey === "play") this.choiceState = null;
       this.lastModal = modalKey;
     }
     if (this.lastExpanded !== d.handExpanded) {
@@ -840,7 +849,9 @@ class CanvasUI {
     this.motion(d.motionItems || []);
   }
   activeGame() {
-    const d = this.page.data, v = d.v, g = d.room.game;
+    const d = this.page.data,
+      v = d.v,
+      g = d.room.game;
     const dockY = this.h - this.bottom - 118;
     const top = this.top + 54;
     const available = dockY - top;
@@ -850,33 +861,60 @@ class CanvasUI {
     const tableH = handY - top - 6;
     this.layout.dock = { x: 18, y: dockY, w: this.w - 36, h: 118 };
     this.board(top, tableH);
-    const phaseKey = g.phase + ":" + g.current;
-    if (phaseKey !== this.privatePhaseKey) {
-      this.privatePhaseKey = phaseKey;
-      this.pageScroll = 0;
-    }
-    const privateChoice = (v.turn && ["future", "alterFuture", "defuse", "insert"].includes(g.phase)) ||
-      (g.phase === "favor" && g.pending?.target === v.myId);
+    const giving =
+      v.alive && g.phase === "favor" && g.pending?.target === v.myId;
     this.pageMax = 0;
-    const viewport = { x: 18, y: top + 8, w: this.w - 36, h: Math.max(1, tableH - 16) };
-    if (privateChoice) {
-      this.box(viewport.x - 2, viewport.y - 2, viewport.w + 4, viewport.h + 4, "#fafafc", C.line, 22);
-      this.clip(viewport, () => {
-        const end = this.privatePhase(viewport.y - this.pageScroll);
-        this.pageMax = Math.max(0, end + this.pageScroll - viewport.y - viewport.h);
-      });
-      this.scrollIndicator(viewport, this.pageScroll, this.pageMax);
-    }
-    this.layout.scroll = { max: this.pageMax, offset: this.pageScroll, viewport };
-    this.layout.privatePanel = privateChoice ? viewport : null;
-    if (!privateChoice && tableH >= 260 && (v.deckTop || v.deckBottom))
-      this.text("✹ " + (v.deckTop ? "牌顶" : "牌底") + "有翻面内爆猫", this.w / 2, top + tableH - 62, 10, C.red, "center", 600, this.w - 100);
+    this.pageScroll = 0;
+    const viewport = {
+      x: 18,
+      y: top + 8,
+      w: this.w - 36,
+      h: Math.max(1, tableH - 16),
+    };
+    this.layout.scroll = { max: 0, offset: 0, viewport };
+    this.layout.privatePanel = null;
+    if (giving) this.box(12, handY, this.w - 24, handH - 1, null, C.blue, 18);
+    if (tableH >= 260 && (v.deckTop || v.deckBottom))
+      this.text(
+        "✹ " + (v.deckTop ? "牌顶" : "牌底") + "有翻面内爆猫",
+        this.w / 2,
+        top + tableH - 62,
+        10,
+        C.red,
+        "center",
+        600,
+        this.w - 100,
+      );
     this.clip({ x: 0, y: handY, w: this.w, h: handH }, () => {
-      this.hand(handY, compact ? { header: 36, width: 96, height: 90 } : undefined);
-      if (d.selected?.length && !v.selection?.valid && !v.canGive)
-        this.text(v.selection?.hint || "", 18, dockY - 14, 10, C.muted, "left", 400, this.w - 36);
-      if (!v.alive)
-        this.text("已出局 · 旁观中", 18, dockY - 14, 10, C.muted);
+      this.hand(
+        handY,
+        compact ? { header: 36, width: 96, height: 90 } : undefined,
+      );
+      if (giving) {
+        const actor = v.players.find((p) => p.id === g.pending?.actor);
+        this.text(
+          (actor?.name || "对方") + "索要 1 张 · 选牌后点交牌",
+          18,
+          dockY - 14,
+          10,
+          C.blue,
+          "left",
+          600,
+          this.w - 36,
+        );
+      }
+      if (!giving && d.selected?.length && !v.selection?.valid && !v.canGive)
+        this.text(
+          v.selection?.hint || "",
+          18,
+          dockY - 14,
+          10,
+          C.muted,
+          "left",
+          400,
+          this.w - 36,
+        );
+      if (!v.alive) this.text("已出局 · 旁观中", 18, dockY - 14, 10, C.muted);
     });
     this.dock(dockY);
     this.motion(d.motionItems || []);
@@ -899,8 +937,15 @@ class CanvasUI {
     c.stroke();
     c.lineWidth = 1;
     const compact = h < 260;
-    const timer = d.nopeInfo?.done ? "已响应" : d.countdown === null ? "∞" : (d.countdown || 0) + "s";
-    const summary = g.phase === "finished" ? v.winnerName + "获胜" : `${v.phaseTitle} · ${g.remaining} 回合 · ${timer}`;
+    const timer = d.nopeInfo?.done
+      ? "已响应"
+      : d.countdown === null
+        ? "∞"
+        : (d.countdown || 0) + "s";
+    const summary =
+      g.phase === "finished"
+        ? v.winnerName + "获胜"
+        : `${v.phaseTitle} · ${g.remaining} 回合 · ${timer}`;
     (v.tablePlayers || []).forEach((p, i) => {
       const match = p.seatStyle?.match(
         /left:([\d.]+)%;top:clamp\(52px,([\d.]+)%/,
@@ -930,7 +975,11 @@ class CanvasUI {
           sw - 48,
         );
         this.text(
-          !p.alive ? "已出局" : compact ? `${v.phaseTitle}·${g.remaining}回合·${timer}` : p.count + " 张牌",
+          !p.alive
+            ? "已出局"
+            : compact
+              ? `${v.phaseTitle}·${g.remaining}回合·${timer}`
+              : p.count + " 张牌",
           sx + 48,
           sy + 34,
           compact ? 8 : 10,
@@ -975,10 +1024,34 @@ class CanvasUI {
       centerY = y + (compact ? Math.max(57, 0.34 * h) : 0.32 * h),
       leftX = this.w / 2 - cw - 10,
       rightX = this.w / 2 + 10;
-    const danger = compact && (v.deckTop ? "牌顶" : v.deckBottom ? "牌底" : null);
-    this.box(leftX, centerY, cw, ch, danger ? "#fff1f2" : "#dceaff", danger ? C.red : C.blue, 10);
-    this.text("🐾", leftX + cw / 2, centerY + ch / 2 - (danger ? 5 : 0), danger ? 18 : 28, danger ? C.red : C.blue, "center");
-    if (danger) this.text("牌堆 " + g.deckCount, leftX + cw / 2, centerY + ch - 7, 8, C.red, "center");
+    const danger =
+      compact && (v.deckTop ? "牌顶" : v.deckBottom ? "牌底" : null);
+    this.box(
+      leftX,
+      centerY,
+      cw,
+      ch,
+      danger ? "#fff1f2" : "#dceaff",
+      danger ? C.red : C.blue,
+      10,
+    );
+    this.text(
+      "🐾",
+      leftX + cw / 2,
+      centerY + ch / 2 - (danger ? 5 : 0),
+      danger ? 18 : 28,
+      danger ? C.red : C.blue,
+      "center",
+    );
+    if (danger)
+      this.text(
+        "牌堆 " + g.deckCount,
+        leftX + cw / 2,
+        centerY + ch - 7,
+        8,
+        C.red,
+        "center",
+      );
     this.text(
       danger ? danger + "有内爆猫" : "牌堆 " + g.deckCount,
       leftX + cw / 2,
@@ -1010,112 +1083,27 @@ class CanvasUI {
       C.muted,
       "center",
     );
-    if (!compact) this.text(
-      summary,
-      this.w / 2,
-      centerY + ch + (compact ? 29 : 34),
-      compact ? 10 : 12,
-      C.blue,
-      "center",
-      600,
-      w - 12,
-    );
-  }
-  privatePhase(y) {
-    const d = this.page.data,
-      v = d.v,
-      g = d.room.game;
-    if (!v.turn && !(g.phase === "favor" && g.pending?.target === v.myId))
-      return y;
-    const x = 18,
-      w = this.w - 36;
-    const panel = (title, hint) => {
-      this.text(title, x + 8, y + 16, 17, C.ink, "left", 600);
-      y += 34;
-      if (hint)
-        y = this.paragraph(hint, x + 8, y, w - 16, 12, C.muted, 17) + 10;
-    };
-    if (g.phase === "future" && g.future) {
-      panel("悄悄看，只有你知道", "从左到右，第一张是下一次会抽到的牌。");
-      const cards = v.future || [],
-        gap = 8,
-        cw = Math.min(
-          104,
-          (w - gap * Math.max(0, cards.length - 1)) / Math.max(1, cards.length),
-        );
-      cards.forEach((card, i) => {
-        this.text(
-          "第 " + (i + 1) + " 张",
-          x + i * (cw + gap) + cw / 2,
-          y + 10,
-          11,
-          C.muted,
-          "center",
-        );
-        this.card(card, x + i * (cw + gap), y + 24, cw, 126);
-      });
-      y += 162;
-      this.button("看好了，继续", "closeFuture", x, y, w, 48, {
-        primary: true,
-      });
-      y += 60;
-    }
-    if (g.phase === "alterFuture" && d.futureState) {
-      panel(
-        "秘密调整未来",
-        "从上到下是牌顶顺序，第一张最先抽到。上下移动后确认，只有你能看到。",
+    if (!compact)
+      this.text(
+        summary,
+        this.w / 2,
+        centerY + ch + (compact ? 29 : 34),
+        compact ? 10 : 12,
+        C.blue,
+        "center",
+        600,
+        w - 12,
       );
-      d.futureState.cards.forEach((card, i) => {
-        this.box(x, y, w, 130, C.white, C.line, 18);
-        this.text(String(i + 1), x + 16, y + 26, 16, C.muted, "center", 600);
-        this.card(card, x + 34, y + 6, 104, 118);
-        this.button("↑ 上移", "future-up", x + w - 120, y + 13, 108, 44, {
-          id: card.id,
-          disabled: !card.canUp,
-          size: 13,
-        });
-        this.button("↓ 下移", "future-down", x + w - 120, y + 73, 108, 44, {
-          id: card.id,
-          disabled: !card.canDown,
-          size: 13,
-        });
-        y += 140;
-      });
-      this.button("确认顺序，继续回合", "orderFuture", x, y, w, 48, {
-        primary: true,
-        disabled: !d.futureState.canConfirm,
-      });
-      y += 60;
-    }
-    if (g.phase === "favor")
-      panel("送出一张牌", "在手牌中只选择一张，再点击交出。");
-    if (g.phase === "defuse") {
-      panel("抽到炸弹猫了！", "用拆弹稳稳保命，再秘密放回炸弹。");
-      this.button("使用拆弹", "defuse", x, y, w, 48, { primary: true });
-      y += 60;
-    }
-    if (g.phase === "insert") {
-      panel(v.insertTitle, v.insertHint);
-      this.button(
-        (v.positions[d.positionIndex || 0]?.label || "选择位置") + " ▾",
-        "picker",
-        x,
-        y,
-        w,
-        48,
-        { picker: "position" },
-      );
-      y += 58;
-      this.button("确认放回", "insert", x, y, w, 48, { primary: true });
-      y += 60;
-    }
-    return y;
   }
   hand(y, sizing = {}) {
     const d = this.page.data,
       cards = d.v.hand || [],
       x = 18,
       w = this.w - 36;
+    const giving =
+      d.v.alive &&
+      d.room.game.phase === "favor" &&
+      d.room.game.pending?.target === d.v.myId;
     this.text("手牌 " + cards.length, x, y + 22, 16, C.ink, "left", 600);
     const toggleW = 86,
       clearW = 78;
@@ -1128,8 +1116,7 @@ class CanvasUI {
     );
     if (d.selected.length)
       this.pill("取消选择", "clear", this.w - 18 - clearW, y, clearW);
-    if (d.selected.length === 1)
-      this.pill("详情", "detail", x + 64, y, 44);
+    if (d.selected.length === 1) this.pill("详情", "detail", x + 64, y, 44);
     y += sizing.header || 48;
     const cw = sizing.width || 112,
       ch = sizing.height || 136;
@@ -1152,11 +1139,13 @@ class CanvasUI {
       max,
       viewport: row,
       total,
+      giving,
     };
     this.clip(row, () => {
       cards.forEach((card, i) => {
         const cx = x + positions[i] - this.handOffset,
-          cy = y - (card.selected ? 12 : 0);
+          cy =
+            y - (card.selected ? Math.min(12, (sizing.header || 48) - 36) : 0);
         this.card(card, cx, cy, cw, ch, {
           hand: true,
           selected: card.selected,
@@ -1168,8 +1157,9 @@ class CanvasUI {
       if (!cards.length)
         this.text("暂时没有手牌", this.w / 2, y + 50, 14, C.muted, "center");
     });
-    const selectionHint = d.selected.length && !d.v.selection?.valid && !d.v.canGive;
-    if (max > 0 && !selectionHint) {
+    const selectionHint =
+      d.selected.length && !d.v.selection?.valid && !d.v.canGive;
+    if (max > 0 && !selectionHint && !giving) {
       this.box(x, y + ch + 8, w, 3, "#e0e0e8", null, 2);
       this.box(
         x + (w - (w * w) / total) * (this.handOffset / max),
@@ -1242,17 +1232,21 @@ class CanvasUI {
       44,
       { size: 11, disabled: !n.canPass, window: n.key },
     );
+    const giving =
+      v.alive &&
+      d.room.game.phase === "favor" &&
+      d.room.game.pending?.target === v.myId;
     const mainW = (w - 10) * 0.64;
     this.button(
-      v.canGive
+      giving
         ? "交牌"
         : `打出${d.selected.length > 1 ? " · " + d.selected.length + " 张" : ""}`,
-      v.canGive ? "give" : "prepare",
+      giving ? "give" : "prepare",
       x,
       y + 66,
       mainW,
       48,
-      { primary: true, disabled: !v.canGive && !v.selection?.valid },
+      { primary: true, disabled: giving ? !v.canGive : !v.selection?.valid },
     );
     this.button("抽牌", "draw", x + mainW + 10, y + 66, w - mainW - 10, 48, {
       disabled: !v.canDraw,
@@ -1286,8 +1280,10 @@ class CanvasUI {
   }
   modal() {
     const d = this.page.data,
-      m = this.picker ? "picker" : d.modal,
+      m = this.picker ? "picker" : this.layout.modal,
       available = this.h - this.top - this.bottom - 8;
+    if (m === "phase-choice" || m === "play")
+      return Choices.renderChoice(this, m);
     const w = this.w - 32;
     let preferredHeight = m === "create" ? 456 : 620;
     if (m === "bots") {
@@ -1404,9 +1400,12 @@ class CanvasUI {
       }
       if (m === "history") {
         const g = d.room?.game;
-        const logs = [...(g?.privateLog || []).map(l => "仅你可见 · " + l.text), ...(g?.logs || []).map(l => l.text)];
+        const logs = [
+          ...(g?.privateLog || []).map((l) => "仅你可见 · " + l.text),
+          ...(g?.logs || []).map((l) => l.text),
+        ];
         if (!logs.length) p("还没有对局动态");
-        logs.forEach(text => p(text, 13));
+        logs.forEach((text) => p(text, 13));
       }
       if (m === "detail" && d.v?.detail) {
         this.card(d.v.detail, px + (pw - 170) / 2, cy, 170, 210);
@@ -1500,84 +1499,6 @@ class CanvasUI {
       }
       if (m === "rules") {
         RULES.forEach((s) => p(s, 15, C.ink));
-      }
-      if (m === "play") {
-        const v = d.v || {},
-          cards = v.selectedCards || [],
-          cw = Math.min(
-            104,
-            (pw - 8 * Math.max(0, cards.length - 1)) /
-              Math.max(1, cards.length),
-          );
-        cards.forEach((card, i) =>
-          this.card(card, px + i * (cw + 8), cy, cw, 130),
-        );
-        cy += 142;
-        p(v.selection?.hint, 13);
-        if (v.selection?.needsTarget) {
-          p(v.targetLabel, 12);
-          const targets = v.targets || [],
-            tw = (pw - 10) / 2;
-          targets.forEach((player, i) => {
-            const tx = px + (i % 2) * (tw + 10),
-              ty = cy + Math.floor(i / 2) * 116;
-            this.box(
-              tx,
-              ty,
-              tw,
-              108,
-              d.target === player.id ? C.pale : C.white,
-              d.target === player.id ? C.blue : C.line,
-              18,
-            );
-            this.avatar(
-              player,
-              tx + (tw - 44) / 2,
-              ty + 10,
-              44,
-              d.target === player.id,
-            );
-            this.text(
-              player.name + (player.isMe ? " · 你" : ""),
-              tx + tw / 2,
-              ty + 72,
-              13,
-              C.ink,
-              "center",
-              600,
-              tw - 12,
-            );
-            this.text(
-              player.count + " 张牌",
-              tx + tw / 2,
-              ty + 92,
-              11,
-              C.muted,
-              "center",
-            );
-            this.region("target", tx, ty, tw, 108, {
-              id: player.id,
-              disabled: !!d.busy,
-            });
-          });
-          cy += Math.ceil(targets.length / 2) * 116 + 8;
-        }
-        if (v.selection?.needsNamed) {
-          button(
-            "声明牌名：" +
-              (d.namedOptions?.[d.namedIndex || 0]?.label || "拆弹") +
-              " ▾",
-            "picker",
-            { picker: "named", size: 14 },
-          );
-        }
-        button("确认打出", "play", {
-          primary: true,
-          disabled:
-            !v.selection?.valid ||
-            (v.selection.needsTarget &&
-              !v.targets?.some((p) => p.id === d.target)),
-        });
       }
       if (m === "leave") {
         p(
@@ -1766,6 +1687,48 @@ class CanvasUI {
     const a = region.action,
       d = this.page.data;
     const event = { currentTarget: { dataset: { ...region } }, detail: {} };
+    if (
+      a === "card" &&
+      d.v.alive &&
+      d.room?.game?.phase === "favor" &&
+      d.room.game.pending?.target === d.v.myId
+    ) {
+      const selected = d.selected.includes(region.id) ? [] : [region.id];
+      return this.page.updateData({
+        selected,
+        v: U.derive(d.room, selected, this.page.localMode),
+      });
+    }
+    if (a === "choice-tab") {
+      if (region.tab === "named" && !d.v.targets.some((p) => p.id === d.target))
+        return;
+      this.choiceState.tab = region.tab;
+      return this.invalidate();
+    }
+    if (a === "choice-page") {
+      this.choiceState.namedPage += region.step;
+      return this.invalidate();
+    }
+    if (
+      a === "choice-named" &&
+      d.modal === "play" &&
+      d.namedOptions[region.index]
+    ) {
+      return this.page.chooseNamed({ detail: { value: String(region.index) } });
+    }
+    if (
+      a === "choice-position" &&
+      d.v.alive &&
+      d.v.turn &&
+      d.room?.game?.phase === "insert"
+    ) {
+      const last = d.v.positions.length - 1;
+      const index =
+        region.index === -1
+          ? Math.floor(Math.random() * (last + 1))
+          : clamp(region.index, 0, last);
+      return this.page.choosePosition({ detail: { value: String(index) } });
+    }
     if (a === "history") return this.page.updateData({ modal: "history" });
     if (a === "input") return this.onInput(region.field);
     if (a === "share")
@@ -1832,9 +1795,12 @@ class CanvasUI {
       modal: !!this.layout.modal,
       offset: this.handOffset,
       scroll: this.layout.modal ? this.modalScroll : this.pageScroll,
-      scrollable: this.layout.screen !== "game" || inside(this.layout.scroll.viewport, p.x, p.y),
+      scrollable:
+        this.layout.screen !== "game" ||
+        inside(this.layout.scroll.viewport, p.x, p.y),
       context: this.contextKey,
       modalKey: this.layout.modal,
+      phase: this.page.data.room?.game?.phase,
     };
     this.invalidate();
   }
@@ -1873,6 +1839,7 @@ class CanvasUI {
       !g.moved &&
       g.context === this.contextKey &&
       g.modalKey === this.layout.modal &&
+      g.phase === this.page.data.room?.game?.phase &&
       inside(g.region, p.x, p.y)
     )
       this.dispatch(g.region);
