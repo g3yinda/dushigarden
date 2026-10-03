@@ -46,15 +46,17 @@ test("2–6 位玩家围同桌，自己在下方且其他座位按实际下家�
     assert.equal(new Set(v.tablePlayers.map((p) => p.seatStyle)).size, n);
   }
 });
-test("旧房间的公共与私密日志显示新名称，保留事件和原始快照", () => {
+test("卡牌名与游戏名独立，旧房间日志兼容且保留事件和原始快照", () => {
   const r = room(2, 0);
   const event = {kind: "bomb", actor: "1", cards: [{type: "bomb"}]};
-  r.game.logs = [{id: 7, text: "猫1 抽到了炸弹猫", cardEvent: event}];
-  r.game.privateLog = [{id: 8, text: "秘密放回炸弹猫"}];
+  r.game.logs = [{id: 7, text: "猫1 抽到了炸毛猫咪", cardEvent: event}];
+  r.game.privateLog = [{id: 8, text: "秘密放回炸毛猫咪"}];
   const before = structuredClone(r);
+  assert.equal(U.gameName,"炸毛猫咪");
+  assert.equal(U.card({type:"bomb"}).name,"炸弹猫");
   const v = U.derive(r, []);
-  assert.equal(v.logs[0].text, "猫1 抽到了炸毛猫咪");
-  assert.equal(v.privateLog[0].text, "秘密放回炸毛猫咪");
+  assert.equal(v.logs[0].text, "猫1 抽到了炸弹猫");
+  assert.equal(v.privateLog[0].text, "秘密放回炸弹猫");
   assert.equal(v.logs[0].id, 7);
   assert.equal(v.logs[0].cardEvent, event);
   assert.deepEqual(r, before);
@@ -154,7 +156,7 @@ test("旧快照进入拆弹也显示抽弹玩家，与新公开事件不重复",
   after.game.phase = "insert";
   after.game.bomb = { type: "imploding" };
   delete after.game.logs;
-  assert.notEqual(U.motions(before, after)[0].explosion, true, "首次抽未翻面内爆猫不播放炸毛猫咪爆炸");
+  assert.notEqual(U.motions(before, after)[0].explosion, true, "首次抽未翻面内爆猫不播放炸弹猫爆炸");
 });
 
 test("拆弹后秘密放回展示操作者，不把私密位置带入公开动效", () => {
@@ -168,7 +170,7 @@ test("拆弹后秘密放回展示操作者，不把私密位置带入公开动�
   assert.equal(effect.kind, "defuse");
   assert.equal(effect.actor?.id, "2");
   assert.equal(effect.relationship, "猫2");
-  assert.match(effect.actionText, /正在秘密放回炸毛猫咪/);
+  assert.match(effect.actionText, /正在秘密放回炸弹猫/);
   assert.doesNotMatch(JSON.stringify(effect), /第 7 张|privateLog|position/);
 });
 

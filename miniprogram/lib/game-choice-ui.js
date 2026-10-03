@@ -182,7 +182,7 @@ function renderChoice(ui, mode) {
     const tx = px + artW + 14,
       tw = pw - artW - 14;
     ui.paragraph(
-      "抽到了炸毛猫咪！使用拆弹后，秘密放回。",
+      "抽到了炸弹猫！使用拆弹后，秘密放回。",
       tx,
       cy + 15,
       tw,
@@ -221,7 +221,7 @@ function renderChoice(ui, mode) {
       tw,
     );
     ui.text(
-      imploding ? "秘密放回内爆猫" : "秘密放回炸毛猫咪",
+      imploding ? "秘密放回内爆猫" : "秘密放回炸弹猫",
       tx + tw / 2,
       middle,
       12,

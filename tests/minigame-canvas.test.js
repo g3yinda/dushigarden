@@ -472,7 +472,7 @@ test("motion renders cached art, entrance exit and explosion; reduced mode needs
       kind: "bomb",
       explosion: true,
       actor: x.page.data.v.players[0],
-      title: "抽到了炸毛猫咪！",
+      title: "抽到了炸弹猫！",
       card: U.card({ type: "bomb" }),
     },
   ];
@@ -495,7 +495,7 @@ test("bomb animation spans the complete viewport and its shockwave reaches the f
     const x = harness(w,h); x.accept(room());
     const washes = [];
     x.ui.ctx.fillRect = (...rect) => { if (x.ui.ctx.fillStyle === "#ff7768") washes.push(rect); };
-    x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸毛猫咪！", card: U.card({type:"bomb"}) }];
+    x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸弹猫！", card: U.card({type:"bomb"}) }];
     x.ui.render(1000); x.ui.render(1500);
     const fx = x.ui.layout.explosion;
     assert(fx?.active, "explosion is visible throughout its richer sequence");
@@ -512,7 +512,7 @@ test("bomb animation spans the complete viewport and its shockwave reaches the f
 test("full-screen explosion preserves the private defuse dialog and its live touch controls", () => {
   const x = harness(320,568), r = room(6,"defuse"); x.accept(r);
   const before = {...x.find("defuse")};
-  x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸毛猫咪！", card: U.card({type:"bomb"}) }];
+  x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸弹猫！", card: U.card({type:"bomb"}) }];
   x.ui.render(1000); x.ui.render(1400);
   assert.deepEqual(x.ui.layout.explosion?.protectedRect, x.ui.layout.modalRect, "foreground effects leave the complete choice dialog clear");
   assert.deepEqual(x.find("defuse"), before);
@@ -817,7 +817,7 @@ test("fixed game zones keep the whole hand visible and stable through phases and
       assert.deepEqual(x.ui.layout.table, table);
       assert.equal(!!x.find("card", "c0"), ["nope","favor"].includes(phase));
     }
-    const r=room();r.game.deckTop={type:"imploding",faceUp:true};r.game.logs=[{text:"玩家抽到了炸毛猫咪"}];
+    const r=room();r.game.deckTop={type:"imploding",faceUp:true};r.game.logs=[{text:"玩家抽到了炸弹猫"}];
     x.accept(r,["c0","c1"]);
     assert.equal(x.ui.layout.hand.y, initial.y);
   }

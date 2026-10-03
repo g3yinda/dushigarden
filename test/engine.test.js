@@ -266,7 +266,7 @@ test("抽弹公开事件标明玩家：有拆弹、直接出局和合并快照�
     assert.equal(bombs.length, 1);
     assert.equal(bombs[0].actor.id, "p0");
     assert.equal(bombs[0].relationship, "猫0");
-    assert.equal(bombs[0].actionText, "抽到了炸毛猫咪！");
+    assert.equal(bombs[0].actionText, "抽到了炸弹猫！");
     assert.equal(bombs[0].explosion, true);
     assert.equal(bombs[0].target, null);
     assert.equal(U.motions(after, after).length, 0);

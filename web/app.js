@@ -301,7 +301,7 @@ function phase(r, v) {
   if (g.phase === "favor" && g.pending?.target === v.myId)
     return '<div class="phase"><h3>送出一张牌</h3>请在手牌中只选择一张，再点击交出。</div>';
   if (g.phase === "defuse" && v.turn)
-    return `<div class="phase"><h3>抽到炸毛猫咪了！</h3>用拆弹稳稳保命，再秘密放回炸弹。${btn("使用拆弹", "defuse")}</div>`;
+    return `<div class="phase"><h3>抽到炸弹猫了！</h3>用拆弹稳稳保命，再秘密放回炸弹。${btn("使用拆弹", "defuse")}</div>`;
   if (g.phase === "insert" && v.turn)
     return `<div class="phase"><h3>${esc(v.insertTitle)}</h3><p>${esc(v.insertHint)}</p><label for="position">选择插入位置</label><select id="position">${v.positions.map((p) => `<option value="${p.value}" ${S.position === p.value ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>${btn("确认放回", "insert")}</div>`;
   return "";

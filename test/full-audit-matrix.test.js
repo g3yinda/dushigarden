@@ -35,7 +35,7 @@ for(const n of [2,3,4,5,6]) for(const noTurnTimer of toggles) for(const allowNop
      }
      const after={me:'p0',game:E.project(g,'p0')};
      for(const effect of U.motions(before,after).filter(e=>e.explosion)){
-      assert.equal(effect.actor.id,actor);assert.equal(effect.actionText,'抽到了炸毛猫咪！');assert.equal(effect.card.type,'bomb');
+      assert.equal(effect.actor.id,actor);assert.equal(effect.actionText,'抽到了炸弹猫！');assert.equal(effect.card.type,'bomb');
      }
      if(g.phase!=='finished')assert.equal(g.deadline===null,g.phase==='nope'?nopeSeconds===0:noTurnTimer);
     }

@@ -1764,7 +1764,7 @@ class CanvasUI {
         tw,
       );
       this.text(
-        effect.kind === "draw" ? effect.card.name : "正在秘密放回炸毛猫咪",
+        effect.kind === "draw" ? effect.card.name : "正在秘密放回炸弹猫",
         cx,
         rowY + 86,
         effect.kind === "draw" ? 13 : 11,
