@@ -1067,9 +1067,9 @@ test("public imploding warnings live beside the deck and clear the local portrai
 
 test("cute card back stays cached and its fallback leaves the deck count and controls readable", () => {
   const x=harness();x.accept(room());
-  const entry=x.ui.images.get("card-back-v1.jpg");
+  const entry=x.ui.images.get("card-back-sunshine-v1.jpg");
   assert(entry?.ready,"deck loads its own decorative back asset");
-  assert(x.draws.some(a=>a[0].path==="assets/card-back-v1.jpg"));
+  assert(x.draws.some(a=>a[0].path==="assets/card-back-sunshine-v1.jpg"));
   const loaded=x.images.length;x.tap(x.find("card","c0"));
   assert.equal(x.images.length,loaded,"selection must not reload the back or avatars");
   entry.ready=false;entry.error=true;const labels=[],text=x.ui.text.bind(x.ui);

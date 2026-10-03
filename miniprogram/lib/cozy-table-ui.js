@@ -24,16 +24,16 @@ function drawBackdrop(ui) {
 }
 
 function drawCardBack(ui,x,y,w,h) {
-  const entry=ui.image("card-back-v1.jpg");
+  const entry=ui.image("card-back-sunshine-v1.jpg");
   if(entry?.ready) {
     const iw=entry.image.width,ih=entry.image.height,scale=Math.max(w/iw,h/ih);
     const sw=w/scale,sh=h/scale;
     // A short-screen thumbnail keeps the kitten's face rather than stretching the portrait.
     const sy=h/w<1?(ih-sh)*.42:(ih-sh)/2;
-    ui.crop("card-back-v1.jpg",(iw-sw)/2,sy,sw,sh,x,y,w,h,Math.min(8,h/3));
+    ui.crop("card-back-sunshine-v1.jpg",(iw-sw)/2,sy,sw,sh,x,y,w,h,Math.min(8,h/3));
   } else {
-    ui.box(x,y,w,h,"#cbe2fc",null,Math.min(8,h/3));
-    paw(ui,x+w/2,y+h/2,Math.min(w*.48,h*.7),"#465365");
+    ui.box(x,y,w,h,"#fff0c8",null,Math.min(8,h/3));
+    paw(ui,x+w/2,y+h/2,Math.min(w*.48,h*.7),"#98744b");
   }
 }
 
@@ -119,7 +119,7 @@ function drawBoard(ui,y,h) {
   const shortFallback=compact&&ch<28;
   const backH=compact&&!shortFallback?ch-(danger?20:8):ch;
   ui.layout.piles=[{x:leftX,y:centerY,w:cw+5,h:backH+5},{x:rightX,y:centerY,w:cw,h:ch}];
-  for(const shift of [5,3,0])ui.box(leftX+shift,centerY+shift,cw,backH,danger?"#fff1f2":"#dceaff",danger?RED:BLUE,compact?7:11);
+  for(const shift of [5,3,0])ui.box(leftX+shift,centerY+shift,cw,backH,danger?"#fff1f2":"#fff0c8",danger?RED:BLUE,compact?7:11);
   drawCardBack(ui,leftX+2,centerY+2,cw-4,backH-4);
   if(shortFallback) {
     ui.box(leftX+2,centerY+backH-15,cw-4,13,"rgba(255,255,255,.9)",null,4);
