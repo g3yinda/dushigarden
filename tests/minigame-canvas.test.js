@@ -242,6 +242,15 @@ test("all 2–6 actual table seat orders rotate around current player", () => {
     assert.equal(x.ui.layout.seats.length, n);
   }
 });
+
+test("enlarged compact six-player labels do not overlap the local player's avatar", () => {
+  const x = harness(320, 568); x.accept(room());
+  const own = x.ui.layout.seats.find(s => s.isMe);
+  for (const seat of x.ui.layout.seats.filter(s => !s.isMe)) {
+    const label = { x: seat.x, y: seat.y + seat.h - 16, w: seat.w, h: 16 };
+    assert(label.x + label.w <= own.x - 2 || label.x >= own.x + own.h + 2 || label.y + label.h <= own.y - 2 || label.y >= own.y + own.h + 2, "other-player labels must clear the local avatar and its ring");
+  }
+});
 test("waiting always has two columns and host controls", () => {
   const x = harness(320, 568);
   const r = room(4);
@@ -758,7 +767,7 @@ test("short-screen deck labels clear the player's avatar and the turn label stay
     if (warning) r.game[warning] = { type: "imploding", faceUp: true };
     x.accept(r);
     const me = x.ui.layout.seats.find(s => s.isMe);
-    for (const label of labels.filter(a => /^(剩余 \d+ 张|\d+ 张|弃牌堆|牌[顶底]有内爆猫)$/.test(a[0])))
+    for (const label of labels.filter(a => a[5] === "center" && /^(剩余 \d+ 张|\d+ 张|弃牌堆|牌[顶底]有内爆猫)$/.test(a[0])))
       assert(label[2] + label[3] / 2 <= me.y - 3, `deck label ${label[2]} clears avatar ${me.y} for ${n} seats`);
     const turn = labels.find(a => a[0].includes("回合"));
     assert(turn[2] >= me.y && turn[2] <= me.y + me.h, "turn information shares the player's label");

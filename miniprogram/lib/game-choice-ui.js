@@ -92,7 +92,7 @@ function renderChoice(ui, mode) {
   const line = (text, by, color = MUTED) =>
     ui.text(text, px, by, 11, color, "left", 400, pw);
   if (phase === "future") {
-    line("从左到右，第一张最先抽到", cy + 10);
+    line("只有你能看见预知 · 第一张最先抽到", cy + 10);
     const cards = v.future || [],
       gap = 8,
       cw =
@@ -130,7 +130,7 @@ function renderChoice(ui, mode) {
     primary("看好了，继续", "closeFuture");
   }
   if (phase === "alterFuture") {
-    line("第一张最先抽到 · 用箭头调整", cy + 10);
+    line("仅你可见 · 第一张最先抽到", cy + 10);
     const cards = d.futureState?.cards || [],
       rowY = cy + 22;
     const rowH = Math.min(

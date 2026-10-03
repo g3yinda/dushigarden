@@ -937,6 +937,9 @@ class CanvasUI {
     c.stroke();
     c.lineWidth = 1;
     const compact = h < 260;
+    const portrait = compact
+      ? clamp(Math.floor((h * 0.23) / 2) * 2, 36, 42)
+      : clamp(Math.floor(Math.min(w * 0.17, h * 0.16) / 2) * 2, 48, 64);
     const timer = d.nopeInfo?.done
       ? "已响应"
       : d.countdown === null
@@ -952,27 +955,33 @@ class CanvasUI {
       );
       const px = match ? Number(match[1]) : 50,
         py = match ? Number(match[2]) : i ? 10 : 90;
-      const sw = p.isMe ? 128 : 72,
-        sh = p.isMe ? 40 : compact ? 52 : 82;
-      const sx = clamp(x + (w * px) / 100 - sw / 2, x + 3, x + w - sw - 3);
+      const as = p.isMe && compact ? portrait + 4 : portrait,
+        sw = p.isMe ? (compact ? 154 : 180) : compact ? 88 : portrait + 40,
+        sh = p.isMe ? as + (compact ? 0 : 8) : as + 3 + (compact ? 16 : 40);
+      const sx = clamp(
+        x + (w * px) / 100 - (p.isMe ? as / 2 : sw / 2),
+        x + 3,
+        x + w - sw - 3,
+      );
       const sy = clamp(
-        y + clamp((h * py) / 100, compact ? 30 : 52, h - 24) - sh / 2,
+        y +
+          clamp((h * py) / 100, compact ? 30 : 52, h - 24) -
+          (p.isMe && compact ? 20 : sh / 2),
         y + 4,
         y + h - sh - 4,
       );
-      const as = p.isMe ? (compact ? 32 : 40) : compact ? 28 : 44,
-        ax = p.isMe ? sx : sx + (sw - as) / 2;
+      const ax = p.isMe ? sx : sx + (sw - as) / 2;
       this.avatar(p, ax, sy, as, p.active && g.phase !== "finished");
       if (p.isMe) {
         this.text(
           p.name + " · 你",
-          sx + 48,
-          sy + 16,
-          12,
+          sx + as + 12,
+          sy + (compact ? 20 : 22),
+          compact ? 14 : 16,
           C.ink,
           "left",
           600,
-          sw - 48,
+          sw - as - 12,
         );
         this.text(
           !p.alive
@@ -980,35 +989,49 @@ class CanvasUI {
             : compact
               ? `${v.phaseTitle}·${g.remaining}回合·${timer}`
               : p.count + " 张牌",
-          sx + 48,
-          sy + 34,
-          compact ? 8 : 10,
+          sx + as + 12,
+          sy + (compact ? 34 : 44),
+          compact ? 8 : 11,
           C.muted,
           "left",
           400,
-          sw - 48,
+          sw - as - 12,
         );
       } else {
         const labelY = sy + as + 3;
-        this.box(sx, labelY, sw, compact ? 22 : 36, "#faf8f4", null, 10);
-        this.text(
-          p.name,
-          sx + sw / 2,
-          labelY + (compact ? 5 : 10),
-          compact ? 9 : 11,
-          C.ink,
-          "center",
-          600,
-          sw - 6,
-        );
-        this.text(
-          p.alive ? p.count + " 张牌" : "已出局",
-          sx + sw / 2,
-          labelY + (compact ? 17 : 26),
-          compact ? 8 : 10,
-          C.muted,
-          "center",
-        );
+        this.box(sx, labelY, sw, compact ? 16 : 40, "#faf8f4", null, 10);
+        if (compact) {
+          const count = p.alive ? p.count + " 张" : "出局";
+          this.font(9);
+          const countW = this.ctx.measureText(count).width;
+          this.font(11, 600);
+          const nameW = Math.min(
+              this.ctx.measureText(p.name).width,
+              sw - countW - 14,
+            ),
+            labelX = sx + (sw - nameW - countW - 6) / 2;
+          this.text(p.name, labelX, labelY + 8, 11, C.ink, "left", 600, nameW);
+          this.text(count, labelX + nameW + 6, labelY + 8, 9, C.muted, "left");
+        } else {
+          this.text(
+            p.name,
+            sx + sw / 2,
+            labelY + 12,
+            portrait >= 60 ? 15 : 14,
+            C.ink,
+            "center",
+            600,
+            sw - 6,
+          );
+          this.text(
+            p.alive ? p.count + " 张牌" : "已出局",
+            sx + sw / 2,
+            labelY + 31,
+            11,
+            C.muted,
+            "center",
+          );
+        }
       }
       this.layout.seats.push({
         x: sx,
@@ -1887,7 +1910,7 @@ class CanvasUI {
       duration,
     };
     if (elapsed >= duration && !reduced) return;
-    if (effect.kind === "defuse" && effect.actor) {
+    if (["defuse", "draw"].includes(effect.kind) && effect.actor) {
       const table = this.layout.table,
         compact = table?.h < 260,
         w = Math.min(this.w - 54, 304),
@@ -1915,15 +1938,24 @@ class CanvasUI {
         700,
         tw,
       );
-      this.text("拆弹成功", cx, rowY + 66, 15, C.blue, "center", 600, tw);
       this.text(
-        "正在秘密放回炸弹猫",
+        effect.kind === "draw" ? "获得一张新牌" : "拆弹成功",
+        cx,
+        rowY + 66,
+        15,
+        C.blue,
+        "center",
+        600,
+        tw,
+      );
+      this.text(
+        effect.kind === "draw" ? effect.card.name : "正在秘密放回炸弹猫",
         cx,
         rowY + 86,
-        11,
-        C.muted,
+        effect.kind === "draw" ? 13 : 11,
+        effect.kind === "draw" ? C.ink : C.muted,
         "center",
-        400,
+        effect.kind === "draw" ? 600 : 400,
         tw,
       );
       c.restore();

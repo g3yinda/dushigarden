@@ -157,3 +157,33 @@ test("拆弹后秘密放回展示操作者，不把私密位置带入公开动�
   assert.match(effect.actionText, /正在秘密放回炸弹猫/);
   assert.doesNotMatch(JSON.stringify(effect), /第 7 张|privateLog|position/);
 });
+
+test("获得新牌显示持牌者姓名与牌名，不拿下一位行动者当获得者", () => {
+  const before = room(3, 0), after = structuredClone(before);
+  after.game.current = "1";
+  after.game.hand = [{ id: "new", type: "skip" }];
+  const effect = U.motions(before, after)[0];
+  assert.equal(effect.kind, "draw");
+  assert.equal(effect.actor?.id, "0");
+  assert.equal(effect.relationship, "猫0");
+  assert.match(effect.actionText, /获得.*跳过/);
+  assert.equal(effect.card.type, "skip");
+  const observerBefore = room(3, 2), observerAfter = structuredClone(observerBefore);
+  observerAfter.game.current = "1";
+  observerAfter.game.players[0].count++;
+  assert.equal(U.motions(observerBefore, observerAfter).length, 0, "旁观投影不能推测对手新牌内容");
+});
+
+test("预知与调整未来仅显示各自窗口，不额外排队私密提示", () => {
+  for (const phase of ["future", "alterFuture"]) {
+    const before = room(3, 0), after = structuredClone(before);
+    after.game.phase = phase;
+    after.game.future = [{ id: "private", type: "bomb" }];
+    assert.equal(U.motions(before, after).length, 0);
+    after.game.logs = [{ id: 1, cardEvent: { kind: "play", actor: "0", cards: [{ type: phase === "future" ? "future" : "alterFuture" }] } }];
+    const effects = U.motions(before, after);
+    assert.equal(effects.length, 1, "公开出牌展示仍保留");
+    assert.equal(effects[0].kind, "play");
+    assert.doesNotMatch(JSON.stringify(effects), /private|只有你能看见预知/);
+  }
+});

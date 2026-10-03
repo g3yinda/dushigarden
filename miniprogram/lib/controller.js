@@ -392,6 +392,7 @@
     const actionText = event.kind === "bomb" ? "抽到了炸弹猫！" : event.kind === "implode"
       ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
       : event.kind === "defuse" ? "拆弹成功 · 正在秘密放回炸弹猫"
+      : event.kind === "draw" ? `获得「${labels}」`
       : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
       : `打出「${labels}」${quantity}`;
     return { actor, target, relationship: `${actor?.name || "玩家"}${target ? " 向 " + target.name : ""}`, actionText };
@@ -418,8 +419,6 @@
           title: "拆弹成功 · 秘密放回",
           card: card({ type: "defuse" }),
         };
-      if (["future", "alterFuture"].includes(b.phase) && b.future && b.current === me(next))
-        return { kind: "future", title: b.phase === "alterFuture" ? "秘密调整未来 · 确认后生效" : "只有你能看见预知" };
     }
     if (
       b.pending &&
@@ -447,8 +446,8 @@
       };
     }
     const added = b.hand.find((c) => !a.hand.some((old) => old.id === c.id));
-    if (added)
-      return { kind: "draw", title: "获得一张新牌", card: card(added) };
+    if (added && me(previous) === me(next))
+      return { kind: "draw", ...actionPresentation(next, { kind: "draw", actor: me(next), cards: [added] }), title: "获得一张新牌", card: card(added) };
     return null;
   }
   function motions(previous, next) {
