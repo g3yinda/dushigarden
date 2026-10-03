@@ -968,7 +968,9 @@ class CanvasUI {
       next += d.handExpanded || card.selected ? cw + 8 : step;
     });
     const last = cards[cards.length - 1];
-    const total = cards.length ? positions[positions.length - 1] + (d.handExpanded || last.selected ? cw : foldedW) : 0;
+    // Folded faces expose only `step`; the last card must not add its hidden overlap as blank space.
+    const lastWidth = cards.length ? (d.handExpanded || last.selected ? cw : step) : 0;
+    const total = cards.length ? positions[positions.length - 1] + lastWidth : 0;
     const max = Math.max(0, total - w);
     this.handOffset = clamp(this.handOffset, 0, max);
     this.layout.hand = {
@@ -994,10 +996,10 @@ class CanvasUI {
           this.card(card, cx, cy, cw, ch, { hand: true, selected: card.selected });
         else
           this.layout.hand.faces.push(
-            Cozy.drawFoldedCard(this, card, cx, cy, foldedW, ch, step),
+            Cozy.drawFoldedCard(this, card, cx, cy, i === cards.length - 1 ? lastWidth : foldedW, ch, step),
           );
         const hitW =
-          i === cards.length - 1 ? (full ? cw : foldedW) : positions[i + 1] - positions[i];
+          i === cards.length - 1 ? lastWidth : positions[i + 1] - positions[i];
         this.region("card", cx, cy, hitW, ch, { id: card.id, hand: true });
       });
       if (!cards.length)

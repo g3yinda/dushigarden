@@ -298,6 +298,47 @@ test("hand tap selects, drag scrolls without selection, multi-select and clear p
   assert.equal(x.page.data.selected.length, 0);
   assert(x.page.data.handExpanded);
 });
+
+test("hand drag ends at the last visible folded card without a blank trailing section", () => {
+  for(const [w,h] of [[320,568],[390,844],[430,932]])for(const count of [1,4,8,35]) {
+    const x=harness(w,h),r=room(6,"action",Array.from({length:count},()=>"cat2")),boxes=[],box=x.ui.box.bind(x.ui);
+    x.ui.box=(...a)=>{boxes.push(a);return box(...a);};x.accept(r);
+    const hand=x.ui.layout.hand,p={clientX:hand.x+hand.w/2,clientY:hand.y+20};
+    x.ui.touchStart({touches:[p]});
+    x.ui.touchMove({touches:[{clientX:p.clientX-3000,clientY:p.clientY}]});
+    x.ui.touchEnd({changedTouches:[{clientX:p.clientX-3000,clientY:p.clientY}]});
+    x.ui.render(1000);
+    const last=x.find("card","c"+(count-1)),face=x.ui.layout.hand.faces.at(-1);
+    assert.equal(last.w,44,"last folded card has only its visible strip, not an empty body extension");
+    assert.equal(x.ui.layout.hand.offset,x.ui.layout.hand.max);
+    const edge=Math.min(hand.x+hand.w,hand.x+count*44);
+    assert.equal(last.x+last.w,edge,"last card reaches the viewport edge exactly when scrolling is needed");
+    assert.equal(face.art.x+face.art.w+4,edge,"art strip finishes with only normal card padding");
+    const painted=boxes.filter(a=>a[0]===last.x&&a[1]===last.y&&a[5]==="#e3e3e8").at(-1);
+    assert.equal(painted?.[2],44,"rounded card border ends at the same boundary");
+    const offset=x.ui.handOffset;
+    x.ui.touchStart({touches:[p]});x.ui.touchMove({touches:[{clientX:p.clientX-200,clientY:p.clientY}]});
+    x.ui.touchEnd({changedTouches:[{clientX:p.clientX-200,clientY:p.clientY}]});
+    assert.equal(x.ui.handOffset,offset,"continued dragging cannot reveal empty space");
+    assert.equal(x.page.data.selected.length,0,"a drag does not select a card");
+  }
+});
+
+test("hand end remains correct after selecting, expanding, clearing and removing its last card", () => {
+  const x=harness(),r=room(6,"action",Array.from({length:8},()=>"cat2"));
+  for(const [selected,expanded] of [[["c7"],false],[["c2","c7"],false],[["c2"],false],[[],true],[[],false]]) {
+    x.page.data.handExpanded=expanded;x.accept(r,selected);x.ui.handOffset=10000;x.ui.render(1000);
+    const hand=x.ui.layout.hand,last=x.find("card","c7");
+    assert(last,JSON.stringify({selected,expanded,hand}));
+    assert.equal(last.x+last.w,hand.x+Math.min(hand.w,hand.total),"expanded and selected last cards end at their full face boundary");
+    if(!expanded&&!selected.includes("c7"))assert.equal(last.w,44);
+    else assert(last.w>44,"full face remains available");
+  }
+  r.game.hand.pop();x.ui.handOffset=10000;x.accept(r);
+  assert.equal(x.ui.layout.hand.offset,x.ui.layout.hand.max,"snapshot removal clamps stale scroll offset");
+  const last=x.find("card","c6");
+  assert.equal(last.x+last.w,Math.min(x.ui.layout.hand.x+x.ui.layout.hand.w,x.ui.layout.hand.x+7*44));
+});
 test("nope carries window key and disables unavailable buttons", () => {
   const x = harness();
   x.accept(room(6, "nope"));
