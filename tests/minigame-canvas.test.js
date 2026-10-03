@@ -1023,3 +1023,44 @@ test("public imploding warnings live beside the deck and clear the local portrai
     assert(warnings[0][2]+warnings[0][3]/2<=me.y-3);
   }
 });
+
+test("cute card back stays cached and its fallback leaves the deck count and controls readable", () => {
+  const x=harness();x.accept(room());
+  const entry=x.ui.images.get("card-back-v1.jpg");
+  assert(entry?.ready,"deck loads its own decorative back asset");
+  assert(x.draws.some(a=>a[0].path==="assets/card-back-v1.jpg"));
+  const loaded=x.images.length;x.tap(x.find("card","c0"));
+  assert.equal(x.images.length,loaded,"selection must not reload the back or avatars");
+  entry.ready=false;entry.error=true;const labels=[],text=x.ui.text.bind(x.ui);
+  x.ui.text=(...a)=>{labels.push(a);return text(...a);};x.ui.render(1000);
+  assert(labels.some(a=>a[0]==="剩余 20 张"));assert(x.find("draw"));
+});
+
+test("deck count has a small visible gap and clears the next warning and player across phone sizes", () => {
+  for(const [w,h] of [[320,568],[360,640],[375,667],[390,688],[390,708],[390,728],[390,748],[390,844],[430,932]])for(const warning of [null,"deckTop","deckBottom"]) {
+    const x=harness(w,h),r=room(),labels=[],text=x.ui.text.bind(x.ui);
+    if(warning)r.game[warning]={type:"imploding",faceUp:true};
+    x.ui.text=(...a)=>{labels.push(a);return text(...a);};x.accept(r);
+    const count=labels.find(a=>/^剩余 \d+ 张$/.test(a[0])),deck=x.ui.layout.piles[0],me=x.ui.layout.seats.find(s=>s.isMe);
+    assert(count,"remaining count stays outside the illustrated deck on supported portrait screens");
+    assert(count[2]-count[3]/2>=deck.y+deck.h+3,`${w}x${h}: count clears the stack`);
+    assert(count[2]+count[3]/2<=me.y-3,"count clears local avatar");
+    const danger=labels.find(a=>a[0].includes("有内爆猫"));
+    if(danger) {
+      assert(count[2]+count[3]/2<=danger[2]-danger[3]/2,"count and warning do not overlap");
+      assert(danger[2]+danger[3]/2<=me.y-3,"warning clears local avatar");
+    }
+  }
+});
+
+test("a wider turn ring follows the active opponent and disappears when the game finishes", () => {
+  for(const [w,h] of [[320,568],[390,844]]) {
+    const x=harness(w,h),r=room(),arcs=[],rings=[],c=x.ui.ctx;
+    c.arc=(...a)=>arcs.push(a);c.stroke=()=>{if(c.strokeStyle==="#0071e3"&&c.lineWidth>=4)rings.push({arc:arcs.at(-1),width:c.lineWidth});};
+    r.game.current="p3";x.accept(r);
+    assert.equal(rings.length,1);const seat=x.ui.layout.seats.find(s=>s.id==="p3"),ring=rings[0],a=ring.arc;
+    assert(a[0]-a[2]-ring.width/2>=seat.x && a[0]+a[2]+ring.width/2<=seat.x+seat.w);
+    assert(a[1]-a[2]-ring.width/2>=seat.y,"highlight stays inside avatar footprint");
+    rings.length=0;r.game.phase="finished";x.accept(r);assert.equal(rings.length,0);
+  }
+});

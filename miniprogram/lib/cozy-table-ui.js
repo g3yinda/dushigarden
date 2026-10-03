@@ -23,6 +23,20 @@ function drawBackdrop(ui) {
   ui.box(0,0,ui.w,ui.h,"rgba(255,255,255,.18)",null,0);
 }
 
+function drawCardBack(ui,x,y,w,h) {
+  const entry=ui.image("card-back-v1.jpg");
+  if(entry?.ready) {
+    const iw=entry.image.width,ih=entry.image.height,scale=Math.max(w/iw,h/ih);
+    const sw=w/scale,sh=h/scale;
+    // A short-screen thumbnail keeps the kitten's face rather than stretching the portrait.
+    const sy=h/w<1?(ih-sh)*.42:(ih-sh)/2;
+    ui.crop("card-back-v1.jpg",(iw-sw)/2,sy,sw,sh,x,y,w,h,Math.min(8,h/3));
+  } else {
+    ui.box(x,y,w,h,"#cbe2fc",null,Math.min(8,h/3));
+    paw(ui,x+w/2,y+h/2,Math.min(w*.48,h*.7),"#465365");
+  }
+}
+
 function drawFoldedCard(ui,raw,x,y,w,h,exposed) {
   const card=raw.name?raw:U.card(raw),tone=TONES[card.spineTone]||TONES.other;
   const faceW=Math.min(w,exposed),pad=4;
@@ -44,7 +58,7 @@ function drawFoldedCard(ui,raw,x,y,w,h,exposed) {
 function drawBoard(ui,y,h) {
   const d=ui.page.data,v=d.v,g=d.room.game,x=12,w=ui.w-24,c=ui.ctx;
   ui.layout.table={x,y,w,h};
-  const tiny=h<120,compact=h<260;
+  const tiny=h<120,compact=h<320;
   const portrait=tiny?Math.max(12,h*.24):compact?clamp(Math.floor(h*.23/2)*2,h<150?26:36,42):clamp(Math.floor(Math.min(w*.19,h*.18)/2)*2,48,72);
   // Table fits the available zone instead of being baked into the backdrop.
   c.save();c.shadowColor="rgba(128,94,45,.16)";c.shadowBlur=10;c.shadowOffsetY=4;
@@ -73,7 +87,10 @@ function drawBoard(ui,y,h) {
     const ax=p.isMe?sx:sx+(sw-as)/2;
     ui.avatar(p,ax,sy,as,p.active&&g.phase!=="finished");
     if(p.active&&g.phase!=="finished") {
-      c.save();c.strokeStyle=BLUE;c.lineWidth=2;c.beginPath();c.arc(ax+as/2,sy+as/2,as/2+1,0,Math.PI*2);c.stroke();c.restore();
+      // Both rings stay inside the existing avatar footprint; no seat can jump or overlap.
+      const outer=Math.min(9,as*.3),radius=as/2-outer/2;
+      c.save();c.strokeStyle="#c8e3ff";c.lineWidth=outer;c.beginPath();c.arc(ax+as/2,sy+as/2,radius,0,Math.PI*2);c.stroke();
+      c.strokeStyle=BLUE;c.lineWidth=Math.min(5,as*.2);c.stroke();c.restore();
     }
     if(p.isMe) {
       ui.text(p.name+" · 你",sx+as+8,sy+as*.36,compact?13:16,INK,"left",600,sw-as-8);
@@ -93,22 +110,26 @@ function drawBoard(ui,y,h) {
     }
     ui.layout.seats.push({x:sx,y:sy,w:sw,h:sh,id:p.id,isMe:p.isMe});
   }
-  const centerOffset=compact?Math.max(portrait+23,h*.34):Math.max(portrait+52,h*.34);
-  const cw=compact?48:clamp(Math.round(w*.2),68,86),ch=compact?Math.max(16,Math.min(Math.floor(h*.22),44,h-portrait-centerOffset-26)):clamp(Math.round(h*.27),84,122);
-  const centerY=y+centerOffset;
-  const leftX=ui.w/2-cw-10,rightX=ui.w/2+10;
   const danger=v.deckTop?"牌顶":v.deckBottom?"牌底":null;
-  ui.layout.piles=[{x:leftX,y:centerY,w:cw,h:ch},{x:rightX,y:centerY,w:cw,h:ch}];
-  for(const shift of [5,3,0])ui.box(leftX+shift,centerY+shift,cw,ch,danger?"#fff1f2":"#dceaff",danger?RED:BLUE,compact?7:11);
-  if(compact) {
-    ui.text(danger||"剩余",leftX+cw/2,centerY+9,9,danger?RED:BLUE,"center");
-    ui.text(g.deckCount+" 张",leftX+cw/2,centerY+ch-9,16,danger?RED:BLUE,"center",700);
+  const centerOffset=compact?Math.max(portrait+23,h*.34):Math.max(portrait+52,h*.34);
+  const centerY=y+centerOffset;
+  const me=ui.layout.seats.find(s=>s.isMe);
+  const cw=compact?48:clamp(Math.round(w*.2),68,86),ch=compact?Math.max(16,Math.min(Math.floor(h*.22),44,h-portrait-centerOffset-26)):Math.min(clamp(Math.round(h*.27),84,122),(me?.y??y+h)-centerY-(danger?66:52));
+  const leftX=ui.w/2-cw-10,rightX=ui.w/2+10;
+  const shortFallback=compact&&ch<28;
+  const backH=compact&&!shortFallback?ch-(danger?20:8):ch;
+  ui.layout.piles=[{x:leftX,y:centerY,w:cw+5,h:backH+5},{x:rightX,y:centerY,w:cw,h:ch}];
+  for(const shift of [5,3,0])ui.box(leftX+shift,centerY+shift,cw,backH,danger?"#fff1f2":"#dceaff",danger?RED:BLUE,compact?7:11);
+  drawCardBack(ui,leftX+2,centerY+2,cw-4,backH-4);
+  if(shortFallback) {
+    ui.box(leftX+2,centerY+backH-15,cw-4,13,"rgba(255,255,255,.9)",null,4);
+    ui.text(g.deckCount+" 张",leftX+cw/2,centerY+backH-8,10,danger?RED:BLUE,"center",700);
   } else {
-    ui.box(leftX+5,centerY+5,cw-10,ch-10,"#cbe2fc",null,8);
-    paw(ui,leftX+cw*.4,centerY+ch*.43,23,"#465365");paw(ui,leftX+cw*.65,centerY+ch*.62,19,"#465365");
-    ui.text("剩余 "+g.deckCount+" 张",leftX+cw/2,centerY+ch+14,15,BLUE,"center",700,cw+32);
+    const countSize=compact?(danger?9:10):15;
+    const countY=compact?centerY+backH+5+4+countSize/2:centerY+ch+21;
+    ui.text("剩余 "+g.deckCount+" 张",leftX+cw/2,countY,countSize,danger?RED:BLUE,"center",700,cw+32);
   }
-  if(danger)ui.text(danger+"有内爆猫",leftX+cw/2,centerY+ch+(compact?5:31),9,RED,"center",600,cw+18);
+  if(danger)ui.text(danger+"有内爆猫",leftX+cw/2,centerY+ch+(compact?5:37),9,RED,"center",600,cw+18);
   if(v.discard&&compact) {ui.box(rightX,centerY,cw,ch,"#fff","#e3e3e8",8);ui.cardArt(v.discard,rightX+3,centerY+3,cw-6,ch-6);}
   else if(v.discard) {
     const discard=v.discard,artH=ch-44;
@@ -119,7 +140,7 @@ function drawBoard(ui,y,h) {
   }
   else {ui.box(rightX,centerY,cw,ch,"rgba(255,255,255,.55)","#ded6c7",10);ui.text("出牌区",rightX+cw/2,centerY+ch/2,11,MUTED,"center");}
   ui.text(compact&&v.discard?v.discard.name:"弃牌堆",rightX+cw/2,centerY+ch+(compact?6:14),compact?9:12,MUTED,"center");
-  if(!compact)ui.text(summary,ui.w/2,centerY+ch+(danger?52:38),14,BLUE,"center",600,w-20);
+  if(!compact)ui.text(summary,ui.w/2,centerY+ch+(danger?56:42),14,BLUE,"center",600,w-20);
 }
 
 module.exports={drawBackdrop,drawBoard,drawFoldedCard,paw};
