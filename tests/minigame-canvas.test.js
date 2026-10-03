@@ -1147,8 +1147,15 @@ test("五屏游戏标题与眼睛/设置按钮不重叠，眼睛可打开完整�
     const x=harness(w,h),r=room();
     r.game.logs=Array.from({length:45},(_,i)=>({id:i*2+1,text:`公开记录 ${i}`}));
     r.game.privateLog=[{id:2,text:"抽到「跳过」"}];
+    const headerText=[],drawText=x.ui.text.bind(x.ui);
+    x.ui.text=(...args)=>{if(args[2]<x.ui.top+44)headerText.push(args);return drawText(...args);};
     x.accept(r);
+    const title=headerText.find(args=>args[0]==="炸毛猫咪");
+    const subtitle=headerText.find(args=>String(args[0]).startsWith("房间号"));
+    assert.equal(title[1],w/2, "game title must use screen center");
+    assert.equal(subtitle[1],w/2, "room number must share title center");
     const eye=x.find("history"),settings=x.find("settings");
+    assert(title[1]+title[7]/2<=eye.x-4, "centered title reserved width must clear eye button");
     assert(eye, `${w} screen history entry`);
     assert.equal(eye.w,44);assert.equal(eye.h,44);
     assert.equal(settings.x,w-62);assert(eye.x+eye.w<=settings.x-4);

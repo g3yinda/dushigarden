@@ -422,8 +422,8 @@ class CanvasUI {
   }
   header(title, subtitle, withHistory = false) {
     this.button("‹", "leave", 18, this.top, 44, 44, { pill: true, size: 28 });
-    const titleX = this.w / 2 - (withHistory ? 25 : 0);
-    const titleWidth = this.w - (withHistory ? 190 : 144);
+    const titleX = this.w / 2;
+    const titleWidth = this.w - (withHistory ? 232 : 144);
     this.text(title, titleX, this.top + 16, 22, C.ink, "center", 600, titleWidth);
     if (subtitle)
       this.text(subtitle, titleX, this.top + 37, 11, C.muted, "center", 400, titleWidth);
