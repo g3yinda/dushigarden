@@ -1,4 +1,5 @@
 "use strict";
+const { validAvatar, validWechatAvatar } = require("../shared/player-profile");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -93,7 +94,8 @@ class RoomService extends EventEmitter {
     );
     fs.renameSync(temp, this.file);
   }
-  session({ name = "小猫", avatar = 0 } = {}, identity = null) {
+  session({ name = "小猫", avatar = 0, avatarUrl } = {}, identity = null) {
+    if (avatarUrl !== undefined && avatarUrl !== "" && !validWechatAvatar(avatarUrl)) fail("微信头像地址不正确");
     const now = this.now();
     const key = identity ? "wx:" + hash(identity) : null;
     let p = key
@@ -103,17 +105,16 @@ class RoomService extends EventEmitter {
       p = {
         id: crypto.randomUUID(),
         name: String(name).trim().slice(0, 12) || "小猫",
-        avatar:
-          Number.isInteger(avatar) && avatar >= 0 && avatar < 5 ? avatar : 0,
+        avatar: validAvatar(avatar) ? avatar : 0,
+        avatarUrl: avatarUrl || "",
         identity: key,
       };
       this.players[p.id] = p;
     } else {
       p.name = String(name).trim().slice(0, 12) || p.name;
-      p.avatar =
-        Number.isInteger(avatar) && avatar >= 0 && avatar < 5
-          ? avatar
-          : p.avatar;
+      if (avatarUrl !== undefined) p.avatarUrl = avatarUrl;
+      else if (validAvatar(avatar) && avatar !== p.avatar) p.avatarUrl = "";
+      if (validAvatar(avatar)) p.avatar = avatar;
     }
     for (const [key, s] of Object.entries(this.sessions))
       if (s.expires <= now) delete this.sessions[key];
@@ -125,28 +126,31 @@ class RoomService extends EventEmitter {
     this.save();
     return {
       token,
-      player: { id: p.id, name: p.name, avatar: p.avatar },
+      player: { id: p.id, name: p.name, avatar: p.avatar, avatarUrl: p.avatarUrl || "" },
       mode: identity ? "wechat" : "local",
     };
   }
-  profile(id, { name, avatar }) {
+  profile(id, { name, avatar, avatarUrl }) {
     const p = this.players[id];
     if (!p) fail("请重新登录", "UNAUTHORIZED", 401);
     const r = this.find(id);
     if (r?.status === "playing") fail("请结束当前对局后再修改资料");
+    if (avatarUrl !== undefined && avatarUrl !== "" && !validWechatAvatar(avatarUrl)) fail("微信头像地址不正确");
+    const nextUrl = avatarUrl !== undefined ? avatarUrl : validAvatar(avatar) && avatar !== p.avatar ? "" : p.avatarUrl || "";
     p.name =
       String(name || "")
         .trim()
         .slice(0, 12) || p.name;
-    p.avatar =
-      Number.isInteger(avatar) && avatar >= 0 && avatar < 4 ? avatar : p.avatar;
+    p.avatar = validAvatar(avatar) ? avatar : p.avatar;
+    p.avatarUrl = nextUrl;
     if (r) {
       const seat = r.players.find((p) => p.id === id);
       seat.name = p.name;
       seat.avatar = p.avatar;
+      seat.avatarUrl = p.avatarUrl || "";
       this.changed(r);
     } else this.save();
-    return { id: p.id, name: p.name, avatar: p.avatar };
+    return { id: p.id, name: p.name, avatar: p.avatar, avatarUrl: p.avatarUrl || "" };
   }
   authenticate(token) {
     const s = typeof token === "string" && this.sessions[hash(token)];
@@ -262,6 +266,7 @@ class RoomService extends EventEmitter {
         id: p.id,
         name: p.name,
         avatar: p.avatar,
+        avatarUrl: p.avatarUrl || "",
         isBot: !!p.isBot,
         ready: p.ready,
         online: this.online(p),
@@ -277,6 +282,7 @@ class RoomService extends EventEmitter {
       id: p.id,
       name: p.name,
       avatar: p.avatar,
+      avatarUrl: p.avatarUrl || "",
       isBot: !!p.isBot,
       ready: false,
       away: false,
@@ -402,7 +408,7 @@ class RoomService extends EventEmitter {
         const bot = {
           id: crypto.randomUUID(),
           name: "陪练猫 " + number,
-          avatar: number % 4,
+          avatar: number % 6,
           isBot: true,
           ready: true,
           away: false,
@@ -424,10 +430,11 @@ class RoomService extends EventEmitter {
       )
         fail("需要至少 2 人且全员准备");
       n.game = E.createGame(
-        n.players.map(({ id, name, avatar, isBot }) => ({
+        n.players.map(({ id, name, avatar, avatarUrl, isBot }) => ({
           id,
           name,
           avatar,
+          avatarUrl: avatarUrl || "",
           isBot: !!isBot,
         })),
         { now: this.now(), ...n.options },

@@ -1,9 +1,9 @@
 {
-  "description": "朋友局 · 炸弹猫原生微信小程序",
+  "description": "朋友局 · 炸毛猫咪微信小游戏",
   "miniprogramRoot": "miniprogram/",
   "projectname": "boomcat",
-  "appid": "wx529cf19d338aebcf",
-  "compileType": "miniprogram",
+  "appid": "wxf7af6d01a9bbfdbd",
+  "compileType": "game",
   "setting": {
     "es6": true,
     "enhance": true,
@@ -28,7 +28,14 @@
     }
   },
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      { "type": "suffix", "value": ".wxml" },
+      { "type": "suffix", "value": ".wxss" },
+      { "type": "file", "value": "app.js" },
+      { "type": "file", "value": "app.json" },
+      { "type": "file", "value": "sitemap.json" },
+      { "type": "file", "value": "pages/home/home.json" }
+    ],
     "include": []
   },
   "simulatorPluginLibVersion": {},

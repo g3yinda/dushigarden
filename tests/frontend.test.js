@@ -1117,3 +1117,22 @@ test("手牌分类色保留普通猫与野猫、拆弹、否定及两种攻击�
       assert.equal(controller.card({id:type,type}).spineTone, "other");
   }
 });
+
+test("两端记录窗随本局阶段更新保持打开，重开关闭且历史按事件排序", async () => {
+  const page=nativeHarness(),h=await browserHarness('local');let r=nopeRoom();
+  r.game.logs=[{id:1,text:'对局开始'},{id:3,text:'甲 抽了 1 张牌'}];
+  r.game.privateLog=[{id:2,text:'抽到「跳过」'}];
+  page.accept(r);await receiveNope(h,r);
+  await page.action({currentTarget:{dataset:{action:'history'}}});await h.click('history');
+  assert.equal(page.data.modal,'history');assert.equal(h.state.modal,'history');
+  assert.deepEqual(ui.derive(r,[]).history.map(l=>l.id),[1,2,3]);
+  assert.equal(ui.derive(r,[]).history[1].private,true);
+  for(const phase of ['action','nope','finished']) {
+    r=structuredClone(r);r.revision++;r.game.phase=phase;r.game.current='b';
+    page.accept(r);await receiveNope(h,r);
+    assert.equal(page.data.modal,'history');assert.equal(h.state.modal,'history');
+  }
+  r=structuredClone(r);r.revision++;r.game.id='new-game';
+  page.accept(r);await receiveNope(h,r);
+  assert.equal(page.data.modal,'');assert.equal(h.state.modal,null);
+});

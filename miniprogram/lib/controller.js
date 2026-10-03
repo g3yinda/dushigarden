@@ -3,6 +3,17 @@
   if (typeof module === "object") module.exports = api;
   else root.BoomUI = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const gameName = "炸毛猫咪";
+  // Normalize old danger-card labels without changing the game title or events.
+  function displayLogs(logs = []) {
+    return logs.map((entry) => ({
+      ...entry,
+      text: String(entry.text || "")
+        .replace(/(抽到(?:了)?|秘密放回)炸毛猫咪/g, "$1炸弹猫")
+        .replace(/「炸毛猫咪」/g, "「炸弹猫」")
+        .replace(/^炸毛猫咪(?=放回牌顶)/, "炸弹猫"),
+    }));
+  }
   const names = {
     bomb: "炸弹猫",
     defuse: "拆弹",
@@ -41,11 +52,27 @@
     nope: "响应期间取消一个效果，也可以否定上一张否定；不能否定抽牌、炸弹或拆弹。",
   };
   const avatars = [
-    { id: 0, name: "奶油", style: "width:1059.3%;left:-400%;top:-219.3%;" },
-    { id: 1, name: "桃桃", style: "width:1059.3%;left:-558.6%;top:-219.3%;" },
-    { id: 2, name: "橘子", style: "width:1059.3%;left:-400%;top:-379.3%;" },
-    { id: 3, name: "乌云", style: "width:1059.3%;left:-558.6%;top:-379.3%;" },
+    { id: 0, name: "奶油", kind: "cat", style: "width:1059.3%;left:-400%;top:-219.3%;" },
+    { id: 1, name: "桃桃", kind: "cat", style: "width:1059.3%;left:-558.6%;top:-219.3%;" },
+    { id: 2, name: "橘子", kind: "cat", style: "width:1059.3%;left:-400%;top:-379.3%;" },
+    { id: 3, name: "乌云", kind: "cat", style: "width:1059.3%;left:-558.6%;top:-379.3%;" },
   ];
+  avatars.push(...["雪团", "栗子", "布丁", "豆豆", "棉花", "可可"].map((name, i) => ({
+    id: i + 4, name, kind: i < 2 ? "cat" : "dog", source: "pets-v1.jpg",
+    style: `width:300%;left:${-(i % 3) * 100}%;top:${-Math.floor(i / 3) * 100}%;`,
+  })));
+  // No browser URL dependency: supported by the standalone WeChat game runtime.
+  function normalizeWechatAvatar(value) {
+    if (typeof value !== "string" || value.length > 2048) return "";
+    return /^https?:\/\/(?:wx|thirdwx)\.qlogo\.cn\/(?:mmopen|mmhead)\/[A-Za-z0-9_./%?=&+-]+$/.test(value)
+      ? value.replace(/^http:/, "https:") : "";
+  }
+  function avatarInfo(p = {}) {
+    const n = Number(p.avatar ?? 0), a = avatars[Number.isInteger(n) && n >= 0 && n < avatars.length ? n : 0];
+    const url = normalizeWechatAvatar(p.avatarUrl);
+    return { ...a, avatarUrl: url, avatarSource: url || a.source || "ui.jpg",
+      avatarStyle: url ? "width:100%;left:0%;top:0%;" : a.style };
+  }
   const crops = {
     bomb: [40, 130, 333, 252],
     defuse: [415, 130, 333, 252],
@@ -185,7 +212,8 @@
     const ps = (g ? g.players : r.players).map((p) => ({
       ...p,
       isBot: !!(p.isBot ?? r.players.find((seat) => seat.id === p.id)?.isBot),
-      avatarStyle: avatars[Number(p.avatar) % 4]?.style || avatars[0].style,
+      avatarSource: avatarInfo(p).avatarSource,
+      avatarStyle: avatarInfo(p).avatarStyle,
       isMe: p.id === id,
       isHost: p.id === r.hostId,
       active: g && p.id === g.current,
@@ -193,6 +221,12 @@
     const options = g?.options || r.options || {};
     const omitted = [options.includeImploding === false ? "无内爆猫" : "", options.includeReverse === false ? "无反转" : ""].filter(Boolean);
     const base = {
+      logs: displayLogs(g?.logs),
+      privateLog: displayLogs(g?.privateLog),
+      history: [
+        ...displayLogs(g?.logs).map(entry => ({ ...entry, private: false })),
+        ...displayLogs(g?.privateLog).map(entry => ({ ...entry, private: true })),
+      ].sort((a, b) => a.id - b.id),
       players: ps,
       rulesLabel: g?.rulesVersion === "ek-original-2025-friends-6p-v1"
         ? "六人朋友规则（旧局）"
@@ -384,13 +418,16 @@
       const seat = r.players?.find(p => p.id === id), p = r.game.players.find(p => p.id === id);
       if (!p && !seat) return null;
       const avatar = Number(p?.avatar ?? seat?.avatar ?? 0);
-      return { id, name: p?.name || seat?.name || "玩家", avatar, avatarStyle: avatars[avatar % 4]?.style || avatars[0].style };
+      const info = avatarInfo({ avatar, avatarUrl: p?.avatarUrl ?? seat?.avatarUrl });
+      return { id, name: p?.name || seat?.name || "玩家", avatar, avatarUrl: info.avatarUrl, avatarSource: info.avatarSource, avatarStyle: info.avatarStyle };
     }
     const actor = publicPlayer(event.actor), target = publicPlayer(event.target);
     const labels = [...new Set(event.cards.map(c => names[c.type] || c.type))].join(" + ");
     const quantity = event.cards.length > 1 ? ` ×${event.cards.length} 张` : "";
     const actionText = event.kind === "bomb" ? "抽到了炸弹猫！" : event.kind === "implode"
       ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
+      : event.kind === "defuse" ? "拆弹成功 · 正在秘密放回炸弹猫"
+      : event.kind === "draw" ? `获得「${labels}」`
       : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
       : `打出「${labels}」${quantity}`;
     return { actor, target, relationship: `${actor?.name || "玩家"}${target ? " 向 " + target.name : ""}`, actionText };
@@ -413,11 +450,10 @@
       if (b.phase === "insert")
         return {
           kind: "defuse",
+          ...actionPresentation(next, { kind: "defuse", actor: b.current, cards: [{ type: "defuse" }] }),
           title: "拆弹成功 · 秘密放回",
           card: card({ type: "defuse" }),
         };
-      if (["future", "alterFuture"].includes(b.phase) && b.future && b.current === me(next))
-        return { kind: "future", title: b.phase === "alterFuture" ? "秘密调整未来 · 确认后生效" : "只有你能看见预知" };
     }
     if (
       b.pending &&
@@ -445,8 +481,8 @@
       };
     }
     const added = b.hand.find((c) => !a.hand.some((old) => old.id === c.id));
-    if (added)
-      return { kind: "draw", title: "获得一张新牌", card: card(added) };
+    if (added && me(previous) === me(next))
+      return { kind: "draw", ...actionPresentation(next, { kind: "draw", actor: me(next), cards: [added] }), title: "获得一张新牌", card: card(added) };
     return null;
   }
   function motions(previous, next) {
@@ -544,6 +580,7 @@
     return patch;
   }
   return {
+    gameName,
     dataPatch,
     names,
     card,
@@ -551,6 +588,8 @@
     futureOrder,
     moveFuture,
     avatars,
+    avatarInfo,
+    normalizeWechatAvatar,
     selection,
     derive,
     me,

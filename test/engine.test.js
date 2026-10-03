@@ -272,3 +272,18 @@ test("抽弹公开事件标明玩家：有拆弹、直接出局和合并快照�
     assert.equal(U.motions(after, after).length, 0);
   }
 });
+
+test("完整对局记录超过旧截断数量仍保留，投影只含本人私密记录", () => {
+  let g = arrange(game(2), [[], []], Array(44).fill("skip"));
+  for (let i = 0; i < 40; i++) g = act(g, g.current, "draw");
+  assert.equal(g.logs.length, 41);
+  assert.match(g.logs[0].text, /对局开始/);
+  assert.equal(g.privateLogs.p0.length, 20);
+  assert.equal(g.privateLogs.p1.length, 20);
+  const own = E.project(g, "p0");
+  assert.deepEqual(own.logs, g.logs);
+  assert.deepEqual(own.privateLog, g.privateLogs.p0);
+  assert(!Object.hasOwn(own, "privateLogs"));
+  const foreign = new Set(g.privateLogs.p1.map(l => l.id));
+  assert(own.privateLog.every(l => !foreign.has(l.id)));
+});

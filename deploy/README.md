@@ -2,10 +2,10 @@
 
 后端：单实例 Docker / Node.js 24，独立数据卷。公网调试使用 `BOOMCAT_MODE=preview`，每个 API 请求（公共健康/卡牌目录除外）都需要随机访问码；即使请求经回环代理转发也不放行无认证请求。此模式不承载真实微信账号登录，Bot 可用，网页入口不开放。不要上传调试包作为正式版本。
 
-## 当前部署约定（v0.9.5）
+## 当前部署约定（v0.11.2）
 
 - SSH 别名 `tencent-prod`，目标 43.142.80.120，ubuntu 账号；使用已有 SSH 配置，私钥不进入仓库。
-- 目录 `/home/ubuntu/boomcat/`；镜像 `boomcat-preview:0.9.5`；容器 `boomcat-preview`。
+- 目录 `/home/ubuntu/boomcat/`；镜像 `boomcat-preview:0.11.2`；容器 `boomcat-preview`。
 - 端口仅绑定 `127.0.0.1:8790`；数据卷 `boomcat-preview-data`。不改动原有 Nginx、SSH 或防火墙规则。
 - HTTPS 使用官方 `cloudflare/cloudflared` 临时 Tunnel，容器 `boomcat-preview-tunnel`。不要求购买新域名；随机地址可能随隧道重建改变，不能作为正式发布域名。
 - 临时模式秘钥仅存放服务器 `preview.env`、本地忽略的 `.env.preview` 与 `miniprogram/config.js`；实际文件 600 权限。
@@ -24,7 +24,7 @@
 
 ## 升级与回退
 
-当前源目录 `/home/ubuntu/boomcat/releases/v0.9.5/`；升级前在数据卷保存600权限快照，原容器停止并改名 `boomcat-preview-before-v0.9.5`，新镜像沿用原卷和600权限环境文件，仅绑定回环端口；健康失败恢复旧容器。当前发布证据见 [公网状态](../docs/10-公网测试与发布状态.md) 与 [验收记录](../docs/08-第一版验收记录.md#v095-建房一屏与全量复核)。
+当前源目录 `/home/ubuntu/boomcat/releases/v0.11.2/`；升级前在数据卷保存600权限快照，原容器停止并改名 `boomcat-preview-before-v0.11.2`，新镜像沿用原卷和600权限环境文件，仅绑定回环端口；健康失败恢复旧容器。当前发布证据见 [公网状态](../docs/10-公网测试与发布状态.md) 与 [验收记录](../docs/08-第一版验收记录.md#v0112-对局记录入口)。
 
 部署前核查源码、未跟踪文件、Git历史、归档、容器构建输入和日志，拒绝私钥、Token、私人配置、快照与截图；源码归档同时带 `.dockerignore`，不包含miniprogram的实际密钥配置。新提交使用GitHub noreply作者地址。推送保护不能代替该检查。
 

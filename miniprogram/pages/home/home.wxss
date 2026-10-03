@@ -117,11 +117,13 @@
   max-width: none;
 }
 .avatars {
-  display: flex;
-  gap: 22rpx;
-  justify-content: center;
-  margin: 40rpx 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0,1fr));
+  gap: 24rpx 8rpx;
+  justify-items: center;
+  margin: 32rpx 0;
 }
+.avatars .avatar { width:88rpx; height:88rpx; min-height:44px; padding:0; }
 .chosen {
   outline: 4rpx solid #0071e3;
   outline-offset: 4rpx;
@@ -1345,3 +1347,16 @@ button.danger-primary {
 .create-footer { padding-top: 12px; }
 .create-sheet .create-footer .primary { min-height: 48px; height: 48px; margin: 0 !important; padding: 10px 16px; font-size: 16px; }
 @media (max-height: 600px) { .create-overlay .create-sheet .sheet-content { padding-top: 8px; padding-bottom: 14px; } .create-sheet .top, .create-header { margin-bottom: 4px; } .create-fields { gap: 5px; } .create-sheet .expansion-settings .create-row { min-height: 44px; } .create-footer { padding-top: 8px; } }
+
+/* Keep the illustrated home title in sync with the current game name. */
+.hero-title { position: absolute; left: 3.2%; top: 7.3%; width: 52%; height: 14%; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #fff0cf; color: #3b2416; font-size: min(8.5vw, calc(8.64vh - 25.4px), 36px); font-weight: 800; line-height: 1; white-space: nowrap; }
+.has-resume .hero-title { font-size: min(8.5vw, calc(8.64vh - 30.5px), 36px); }
+
+.game-header { display: grid; grid-template-columns: 94px minmax(0, 1fr) 94px; gap: 6px; }
+.game-tools { display: flex; gap: 6px; align-items: center; }
+.game-tools .circle { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; }
+.eye-shape { width: 20px; height: 13px; border: 2px solid #0071e3; border-radius: 80% 20%; transform: rotate(45deg); display: flex; align-items: center; justify-content: center; }
+.eye-pupil { width: 6px; height: 6px; border-radius: 50%; background: #0071e3; }
+
+.game-header > .circle { justify-self: start; }
+.game-header .game-tools { justify-self: end; }

@@ -1,11 +1,13 @@
 const U = require("../../lib/controller");
 const config = require("../../config");
-Page({
+const definition = {
   data: {
     room: null,
     v: {},
     name: "",
     avatar: 0,
+    avatarUrl: "",
+    avatarSource: "ui.jpg",
     avatars: U.avatars,
     avatarStyle: U.avatars[0].style,
     selected: [],
@@ -42,11 +44,14 @@ Page({
   },
   onLoad(options) {
     this.token = wx.getStorageSync("boom.token");
-    let avatar = Number(wx.getStorageSync("boom.avatar") || 0);
+    const info = U.avatarInfo({ avatar: wx.getStorageSync("boom.avatar"), avatarUrl: wx.getStorageSync("boom.avatarUrl") });
+    let avatar = info.id;
     this.updateData({
       name: wx.getStorageSync("boom.name") || "",
       avatar,
-      avatarStyle: U.avatars[avatar].style,
+      avatarUrl: info.avatarUrl,
+      avatarSource: info.avatarSource,
+      avatarStyle: info.avatarStyle,
       settings: wx.getStorageSync("boom.settings") || {
         reduced: false,
         sound: false,
@@ -59,6 +64,7 @@ Page({
   onShow() {
     this.visible = true;
     if (this.data.room) this.poll();
+    clearInterval(this.clock);
     this.clock = setInterval(() => this.tick(), 250);
   },
   onHide() {
@@ -75,8 +81,8 @@ Page({
   onShareAppMessage() {
     return {
       title: this.data.room
-        ? "来玩炸弹猫，房间号 " + this.data.room.code
-        : "朋友局 · 和朋友轻松开一局",
+        ? "来玩炸毛猫咪，房间号 " + this.data.room.code
+        : "朋友局 · 炸毛猫咪",
       path:
         "/pages/home/home" +
         (this.data.room ? "?room=" + this.data.room.code : ""),
@@ -143,7 +149,10 @@ Page({
       await this.request("/profile", {
         name: this.data.name,
         avatar: this.data.avatar,
+        avatarUrl: this.data.avatarUrl,
       });
+      this.saveAvatar();
+      wx.setStorageSync("boom.name", this.data.name);
       return;
     }
     if (!this.data.name.trim()) throw Error("先给自己起个名字吧");
@@ -159,12 +168,24 @@ Page({
     const s = await this.request("/session", {
       name: this.data.name.trim(),
       avatar: this.data.avatar,
+      avatarUrl: this.data.avatarUrl,
       code,
     });
     this.token = s.token;
     wx.setStorageSync("boom.token", s.token);
     wx.setStorageSync("boom.name", this.data.name);
+    this.saveAvatar();
+  },
+  saveAvatar() {
     wx.setStorageSync("boom.avatar", this.data.avatar);
+    wx.setStorageSync("boom.avatarUrl", this.data.avatarUrl || "");
+  },
+  useWechatAvatar(value) {
+    const avatarUrl = U.normalizeWechatAvatar(value);
+    if (!avatarUrl) { this.notice("暂未获取到微信头像，请重试或选择猫狗头像"); return; }
+    const info = U.avatarInfo({ avatar: this.data.avatar, avatarUrl });
+    this.updateData({ avatarUrl, avatarSource: info.avatarSource, avatarStyle: info.avatarStyle, modal: "" });
+    this.saveAvatar();
   },
   accept(r) {
     if (!r) return;
@@ -202,7 +223,8 @@ Page({
       r.game?.hand.some((c) => c.id === id),
     );
     const changed = old?.code !== r.code || U.contextChanged(old, r);
-    const keepExit = old?.code === r.code && ["leave", "close-room"].includes(this.data.modal);
+    const keepExit = old?.code === r.code && (["leave", "close-room"].includes(this.data.modal)
+      || (this.data.modal === "history" && old?.game?.id === r.game?.id));
     const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
     const named = v.namedOptions.some(c => c.value === this.data.named) ? this.data.named : "defuse";
@@ -461,7 +483,7 @@ Page({
       }
       if (a === "bots-submit") return await this.addBots();
       if (
-        ["settings", "rules", "profile", "join", "leave", "detail"].includes(a)
+        ["settings", "history", "rules", "profile", "join", "leave", "detail"].includes(a)
       ) {
         this.updateData({ modal: a });
         return;
@@ -472,10 +494,17 @@ Page({
       }
       if (a === "avatar") {
         this.updateData({
-          avatar: Number(id),
-          avatarStyle: U.avatars[Number(id)].style,
+          avatar: U.avatarInfo({ avatar: id }).id,
+          avatarUrl: "",
+          avatarSource: U.avatarInfo({ avatar: id }).avatarSource,
+          avatarStyle: U.avatarInfo({ avatar: id }).avatarStyle,
           modal: "",
         });
+        this.saveAvatar();
+        return;
+      }
+      if (a === "wechat-avatar") {
+        if (typeof wx.createUserInfoButton !== "function") this.notice("请在微信中选择微信头像");
         return;
       }
       if (a === "create-submit" || a === "join-submit") {
@@ -578,4 +607,7 @@ Page({
       this.updateData({ busy: false });
     }
   },
-});
+};
+// The same state/actions power both the legacy Page and the Canvas mini-game.
+if (typeof module === "object") module.exports = definition;
+if (typeof Page === "function") Page(definition);
