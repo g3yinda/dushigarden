@@ -222,10 +222,9 @@ for (const [w, h] of [
       assert(s.y >= table.y);
       assert(s.y + s.h <= table.y + table.h);
     }
-    if (h === 568) {
-      assert(x.ui.layout.scroll.max > 0);
-      assert(x.reach("card", "c0"));
-    } else assert(dock.y >= hand.y);
+    assert.equal(x.ui.layout.scroll.max, 0);
+    assert(x.find("card", "c0"));
+    assert(hand.y + hand.h <= dock.y - 6);
     for (const a of ["nope-response", "nope-pass", "prepare", "draw"]) {
       const r = x.find(a);
       assert(r);
@@ -443,6 +442,7 @@ test("vertical gesture scrolls long private content without triggering the press
   ];
   x.accept(r);
   const dockY = x.ui.layout.dock.y;
+  const handY = x.ui.layout.hand.y;
   const viewport = x.ui.layout.scroll.viewport;
   const sx = 100,
     sy = viewport.y + 120;
@@ -452,6 +452,7 @@ test("vertical gesture scrolls long private content without triggering the press
   x.ui.render(1000);
   assert.equal(x.ui.pageScroll, 100);
   assert.equal(x.ui.layout.dock.y, dockY);
+  assert.equal(x.ui.layout.hand.y, handY);
   assert.equal(x.calls.length, 0);
   assert(x.reach("orderFuture"));
 });
@@ -627,26 +628,18 @@ test("header respects the actual capsule rectangle even when it differs from sta
   x.ui.render(1000);
   assert(x.find("profile").y >= 128);
 });
-test("fully clipped hand never creates hit regions in the fixed-dock gap on a short screen", () => {
+test("short-screen hand is visible while empty clips and dock gaps remain noninteractive", () => {
   const x = harness(320, 568);
   x.accept(room());
-  assert.equal(
-    x.find("card"),
-    undefined,
-    "hand below the page viewport must not be hittable",
-  );
-  const p = { clientX: 40, clientY: 490 };
+  assert(x.find("card", "c0"));
+  x.ui.clip({ x: 0, y: 480, w: 320, h: 0 }, () => {
+    x.ui.region("card", 0, 480, 100, 100, { id: "hidden" });
+  });
+  assert.equal(x.find("card", "hidden"), undefined);
+  const p = { clientX: 40, clientY: x.ui.layout.dock.y - 3 };
   x.ui.touchStart({ touches: [p] });
   x.ui.touchEnd({ changedTouches: [p] });
-  assert.equal(
-    x.page.data.selected.length,
-    0,
-    "blank dock gap must not select an invisible card",
-  );
-  assert(
-    x.reach("card", "c0"),
-    "scrolling the hand into view restores its touch regions",
-  );
+  assert.equal(x.page.data.selected.length, 0);
 });
 test("compact create rows never overlap submission when a tall capsule reduces space to 412 px", () => {
   const x = harness(320, 568);
@@ -716,4 +709,67 @@ test("create at the 440 px layout boundary keeps the reverse switch separate fro
     reverse.y + reverse.h <= submit.y,
     "440 px create panel must not overlap its reverse switch and submission",
   );
+});
+
+test("fixed game zones keep the whole hand visible and stable through phases and selection", () => {
+  for (const [w, h] of [[320,568],[390,844],[430,932]]) {
+    const x = harness(w,h);
+    x.accept(room());
+    const initial = {...x.ui.layout.hand};
+    const table = {...x.ui.layout.table};
+    assert(initial.y + initial.h <= x.ui.layout.dock.y - 6, "full hand fits above dock");
+    assert(x.find("card", "c0"), "hand is visible without vertical scrolling");
+    assert.equal(x.ui.pageMax, 0);
+    for (const phase of ["nope", "favor", "defuse", "insert", "future", "alterFuture"]) {
+      const r = room(6,phase);
+      if (["future","alterFuture"].includes(phase)) r.game.future=[{id:"f1",type:"bomb"},{id:"f2",type:"skip"},{id:"f3",type:"nope"}];
+      x.accept(r, ["c0"]);
+      assert.equal(x.ui.layout.hand.y, initial.y, phase+" must not push hand down");
+      assert.deepEqual(x.ui.layout.table, table);
+      assert(x.find("card", "c0"));
+    }
+    const r=room();r.game.deckTop={type:"imploding",faceUp:true};r.game.logs=[{text:"玩家抽到了炸弹猫"}];
+    x.accept(r,["c0","c1"]);
+    assert.equal(x.ui.layout.hand.y, initial.y);
+  }
+});
+
+test("vertical dragging the normal table or hand cannot move either fixed zone", () => {
+  const x=harness();x.accept(room());
+  const before=x.ui.layout.hand.y;
+  const p={clientX:100,clientY:before+40};
+  x.ui.touchStart({touches:[p]});x.ui.touchMove({touches:[{clientX:100,clientY:p.clientY-100}]});x.ui.touchEnd({changedTouches:[{clientX:100,clientY:p.clientY-100}]});x.ui.render(1000);
+  assert.equal(x.ui.layout.hand.y,before);assert.equal(x.ui.pageScroll,0);assert.equal(x.calls.length,0);
+});
+
+test("short-screen deck labels clear the player's avatar and the turn label stays in its seat", () => {
+  const x = harness(320, 568);
+  const labels = [];
+  const text = x.ui.text.bind(x.ui);
+  x.ui.text = (...args) => { labels.push(args); return text(...args); };
+  for (let n = 2; n <= 6; n++) {
+    labels.length = 0;
+    x.accept(room(n));
+    const me = x.ui.layout.seats.find(s => s.isMe);
+    for (const label of labels.filter(a => /^牌堆 |^弃牌堆$/.test(a[0])))
+      assert(label[2] <= me.y - 3, `deck label ${label[2]} clears avatar ${me.y} for ${n} seats`);
+    const turn = labels.find(a => a[0].includes("回合"));
+    assert(turn[2] >= me.y && turn[2] <= me.y + me.h, "turn information shares the player's label");
+  }
+});
+
+test("fixed hand still exposes card details and settings exposes preserved match history", () => {
+  const x = harness();
+  const r = room();
+  r.game.logs = [{text: "猫咪1打出了攻击"}];
+  r.game.privateLog = [{text: "你看到了牌顶"}];
+  x.accept(r, ["c0"]);
+  x.tap(x.find("detail"));
+  assert.equal(x.page.data.modal, "detail");
+  x.tap(x.find("close"));
+  x.tap(x.find("settings"));
+  x.tap(x.reach("history"));
+  assert.equal(x.page.data.modal, "history");
+  assert.deepEqual(r.game.privateLog, [{text: "你看到了牌顶"}]);
+  assert.deepEqual(r.game.logs, [{text: "猫咪1打出了攻击"}]);
 });

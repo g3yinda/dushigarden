@@ -358,12 +358,13 @@ class CanvasUI {
     if (hand) {
       this.box(x + 3, y + 6, 23, h - 12, tone, null, 9);
       let name = card.name.replace(/ ×/g, "");
+      const spineStep = Math.min(15, (h - 24) / Math.max(1, Array.from(name).length - 1));
       Array.from(name).forEach((ch, i) =>
         this.text(
           ch,
           x + 14,
-          y + 15 + i * 15,
-          14,
+          y + 15 + i * spineStep,
+          Math.min(14, spineStep + 1),
           card.type === "bomb" ? C.red : C.ink,
           "center",
           600,
@@ -372,7 +373,7 @@ class CanvasUI {
     }
     const small = h < 100;
     const artH =
-      card.compactHand && hand ? 58 : Math.max(28, h * (small ? 0.44 : 0.53));
+      card.compactHand && hand ? Math.min(58, h * 0.44) : Math.max(28, h * (small ? 0.44 : 0.53));
     this.cardArt(card, x + spine + 5, y + 6, w - spine - 10, artH);
     if (card.symbol)
       this.text(card.symbol, x + w - 13, y + 16, 15, C.blue, "center", 600);
@@ -746,6 +747,7 @@ class CanvasUI {
       g = d.room.game;
     this.header("炸弹猫", "房间号 " + d.room.code);
     const finished = g.phase === "finished";
+    if (!finished) return this.activeGame();
     const dockH = finished ? 0 : 118;
     const dockY = this.h - this.bottom - dockH;
     const viewport = {
@@ -810,50 +812,6 @@ class CanvasUI {
         }
         this.button("返回大厅", "leave", 18, y, this.w - 36, 48);
         y += 62;
-      } else {
-        y = this.privatePhase(y);
-        if (!v.alive)
-          y =
-            this.paragraph(
-              "你已出局，正在旁观。你的手牌只对自己可见。",
-              18,
-              y,
-              this.w - 36,
-              13,
-              C.muted,
-              18,
-            ) + 8;
-        y = this.hand(y);
-        if (d.selected?.length) {
-          this.box(18, y, this.w - 36, 72, C.white, C.line, 14);
-          const names = (v.selectedCards || []).map((c) => c.name).join(" ");
-          this.text(
-            `已选 ${d.selected.length} 张 · ${names}`,
-            28,
-            y + 18,
-            12,
-            C.ink,
-            "left",
-            600,
-            this.w - 108,
-          );
-          if (d.selected.length === 1)
-            this.button("详情", "detail", this.w - 80, y, 60, 44, {
-              pill: true,
-              size: 12,
-            });
-          if (!v.selection?.valid && !v.canGive)
-            this.paragraph(
-              v.selection?.hint,
-              28,
-              y + 34,
-              this.w - 56,
-              11,
-              C.muted,
-              15,
-            );
-          y += 80;
-        }
       }
       const logs = [
         ...(g.privateLog || []).map((l) => "仅你可见 · " + l.text),
@@ -881,6 +839,48 @@ class CanvasUI {
     if (!finished) this.dock(dockY);
     this.motion(d.motionItems || []);
   }
+  activeGame() {
+    const d = this.page.data, v = d.v, g = d.room.game;
+    const dockY = this.h - this.bottom - 118;
+    const top = this.top + 54;
+    const available = dockY - top;
+    const compact = available < 450;
+    const handH = compact ? 142 : 204;
+    const handY = dockY - handH - 6;
+    const tableH = handY - top - 6;
+    this.layout.dock = { x: 18, y: dockY, w: this.w - 36, h: 118 };
+    this.board(top, tableH);
+    const phaseKey = g.phase + ":" + g.current;
+    if (phaseKey !== this.privatePhaseKey) {
+      this.privatePhaseKey = phaseKey;
+      this.pageScroll = 0;
+    }
+    const privateChoice = (v.turn && ["future", "alterFuture", "defuse", "insert"].includes(g.phase)) ||
+      (g.phase === "favor" && g.pending?.target === v.myId);
+    this.pageMax = 0;
+    const viewport = { x: 18, y: top + 8, w: this.w - 36, h: Math.max(1, tableH - 16) };
+    if (privateChoice) {
+      this.box(viewport.x - 2, viewport.y - 2, viewport.w + 4, viewport.h + 4, "#fafafc", C.line, 22);
+      this.clip(viewport, () => {
+        const end = this.privatePhase(viewport.y - this.pageScroll);
+        this.pageMax = Math.max(0, end + this.pageScroll - viewport.y - viewport.h);
+      });
+      this.scrollIndicator(viewport, this.pageScroll, this.pageMax);
+    }
+    this.layout.scroll = { max: this.pageMax, offset: this.pageScroll, viewport };
+    this.layout.privatePanel = privateChoice ? viewport : null;
+    if (!privateChoice && tableH >= 260 && (v.deckTop || v.deckBottom))
+      this.text("✹ " + (v.deckTop ? "牌顶" : "牌底") + "有翻面内爆猫", this.w / 2, top + tableH - 62, 10, C.red, "center", 600, this.w - 100);
+    this.clip({ x: 0, y: handY, w: this.w, h: handH }, () => {
+      this.hand(handY, compact ? { header: 36, width: 96, height: 90 } : undefined);
+      if (d.selected?.length && !v.selection?.valid && !v.canGive)
+        this.text(v.selection?.hint || "", 18, dockY - 14, 10, C.muted, "left", 400, this.w - 36);
+      if (!v.alive)
+        this.text("已出局 · 旁观中", 18, dockY - 14, 10, C.muted);
+    });
+    this.dock(dockY);
+    this.motion(d.motionItems || []);
+  }
   board(y, h) {
     const d = this.page.data,
       v = d.v,
@@ -898,6 +898,9 @@ class CanvasUI {
     c.strokeStyle = "#eadfcf";
     c.stroke();
     c.lineWidth = 1;
+    const compact = h < 260;
+    const timer = d.nopeInfo?.done ? "已响应" : d.countdown === null ? "∞" : (d.countdown || 0) + "s";
+    const summary = g.phase === "finished" ? v.winnerName + "获胜" : `${v.phaseTitle} · ${g.remaining} 回合 · ${timer}`;
     (v.tablePlayers || []).forEach((p, i) => {
       const match = p.seatStyle?.match(
         /left:([\d.]+)%;top:clamp\(52px,([\d.]+)%/,
@@ -905,14 +908,14 @@ class CanvasUI {
       const px = match ? Number(match[1]) : 50,
         py = match ? Number(match[2]) : i ? 10 : 90;
       const sw = p.isMe ? 128 : 72,
-        sh = p.isMe ? 48 : 82;
+        sh = p.isMe ? 40 : compact ? 52 : 82;
       const sx = clamp(x + (w * px) / 100 - sw / 2, x + 3, x + w - sw - 3);
       const sy = clamp(
-        y + clamp((h * py) / 100, 52, h - 34) - sh / 2,
+        y + clamp((h * py) / 100, compact ? 30 : 52, h - 24) - sh / 2,
         y + 4,
         y + h - sh - 4,
       );
-      const as = p.isMe ? 40 : 40,
+      const as = p.isMe ? (compact ? 32 : 40) : compact ? 28 : 44,
         ax = p.isMe ? sx : sx + (sw - as) / 2;
       this.avatar(p, ax, sy, as, p.active && g.phase !== "finished");
       if (p.isMe) {
@@ -927,19 +930,23 @@ class CanvasUI {
           sw - 48,
         );
         this.text(
-          p.alive ? p.count + " 张牌" : "已出局",
+          !p.alive ? "已出局" : compact ? `${v.phaseTitle}·${g.remaining}回合·${timer}` : p.count + " 张牌",
           sx + 48,
           sy + 34,
-          10,
+          compact ? 8 : 10,
           C.muted,
+          "left",
+          400,
+          sw - 48,
         );
       } else {
-        this.box(sx, sy + 43, sw, 36, "#faf8f4", null, 10);
+        const labelY = sy + as + 3;
+        this.box(sx, labelY, sw, compact ? 22 : 36, "#faf8f4", null, 10);
         this.text(
           p.name,
           sx + sw / 2,
-          sy + 54,
-          11,
+          labelY + (compact ? 5 : 10),
+          compact ? 9 : 11,
           C.ink,
           "center",
           600,
@@ -948,8 +955,8 @@ class CanvasUI {
         this.text(
           p.alive ? p.count + " 张牌" : "已出局",
           sx + sw / 2,
-          sy + 70,
-          10,
+          labelY + (compact ? 17 : 26),
+          compact ? 8 : 10,
           C.muted,
           "center",
         );
@@ -963,25 +970,32 @@ class CanvasUI {
         isMe: p.isMe,
       });
     });
-    const centerY = y + h * 0.43,
-      cw = 58,
-      ch = 79;
-    this.box(this.w / 2 - 70, centerY, cw, ch, "#dceaff", C.blue, 10);
-    this.text("🐾", this.w / 2 - 41, centerY + ch / 2, 28, C.blue, "center");
+    const cw = compact ? 48 : 74,
+      ch = compact ? 40 : 100,
+      centerY = y + (compact ? Math.max(57, 0.34 * h) : 0.32 * h),
+      leftX = this.w / 2 - cw - 10,
+      rightX = this.w / 2 + 10;
+    const danger = compact && (v.deckTop ? "牌顶" : v.deckBottom ? "牌底" : null);
+    this.box(leftX, centerY, cw, ch, danger ? "#fff1f2" : "#dceaff", danger ? C.red : C.blue, 10);
+    this.text("🐾", leftX + cw / 2, centerY + ch / 2 - (danger ? 5 : 0), danger ? 18 : 28, danger ? C.red : C.blue, "center");
+    if (danger) this.text("牌堆 " + g.deckCount, leftX + cw / 2, centerY + ch - 7, 8, C.red, "center");
     this.text(
-      "牌堆 " + g.deckCount,
-      this.w / 2 - 41,
-      centerY + ch + 12,
-      11,
-      C.muted,
+      danger ? danger + "有内爆猫" : "牌堆 " + g.deckCount,
+      leftX + cw / 2,
+      centerY + ch + (compact ? 10 : 12),
+      compact ? 9 : 11,
+      danger ? C.red : C.muted,
       "center",
     );
-    if (v.discard) this.card(v.discard, this.w / 2 + 12, centerY, cw, ch);
+    if (v.discard && compact) {
+      this.box(rightX, centerY, cw, ch, C.white, C.line, 10);
+      this.cardArt(v.discard, rightX + 3, centerY + 3, cw - 6, ch - 6);
+    } else if (v.discard) this.card(v.discard, rightX, centerY, cw, ch);
     else {
-      this.box(this.w / 2 + 12, centerY, cw, ch, null, C.line, 10);
+      this.box(rightX, centerY, cw, ch, null, C.line, 10);
       this.text(
         "出牌区",
-        this.w / 2 + 41,
+        rightX + cw / 2,
         centerY + ch / 2,
         11,
         C.muted,
@@ -989,22 +1003,18 @@ class CanvasUI {
       );
     }
     this.text(
-      "弃牌堆",
-      this.w / 2 + 41,
-      centerY + ch + 12,
-      11,
+      compact && v.discard ? v.discard.name : "弃牌堆",
+      rightX + cw / 2,
+      centerY + ch + (compact ? 10 : 12),
+      compact ? 9 : 11,
       C.muted,
       "center",
     );
-    const summary =
-      g.phase === "finished"
-        ? v.winnerName + "获胜"
-        : `${v.phaseTitle} · ${g.remaining} 回合 · ${d.nopeInfo?.done ? "已响应" : d.countdown === null ? "∞" : (d.countdown || 0) + "s"}`;
-    this.text(
+    if (!compact) this.text(
       summary,
       this.w / 2,
-      centerY + ch + 35,
-      12,
+      centerY + ch + (compact ? 29 : 34),
+      compact ? 10 : 12,
       C.blue,
       "center",
       600,
@@ -1101,7 +1111,7 @@ class CanvasUI {
     }
     return y;
   }
-  hand(y) {
+  hand(y, sizing = {}) {
     const d = this.page.data,
       cards = d.v.hand || [],
       x = 18,
@@ -1118,10 +1128,12 @@ class CanvasUI {
     );
     if (d.selected.length)
       this.pill("取消选择", "clear", this.w - 18 - clearW, y, clearW);
-    y += 48;
-    const row = { x, y: y - 14, w, h: 156 };
-    const cw = 112,
-      ch = 136;
+    if (d.selected.length === 1)
+      this.pill("详情", "detail", x + 64, y, 44);
+    y += sizing.header || 48;
+    const cw = sizing.width || 112,
+      ch = sizing.height || 136;
+    const row = { x, y: y - 14, w, h: ch + 20 };
     let positions = [],
       next = 0;
     cards.forEach((card) => {
@@ -1156,7 +1168,8 @@ class CanvasUI {
       if (!cards.length)
         this.text("暂时没有手牌", this.w / 2, y + 50, 14, C.muted, "center");
     });
-    if (max > 0) {
+    const selectionHint = d.selected.length && !d.v.selection?.valid && !d.v.canGive;
+    if (max > 0 && !selectionHint) {
       this.box(x, y + ch + 8, w, 3, "#e0e0e8", null, 2);
       this.box(
         x + (w - (w * w) / total) * (this.handOffset / max),
@@ -1311,6 +1324,7 @@ class CanvasUI {
       join: "加入朋友的房间",
       bots: "添加验证 Bot",
       settings: "按你的习惯",
+      history: "对局动态",
       rules: "活到最后，就赢了",
       play: d.v?.selection?.needsTarget ? d.v.targetLabel : "确认出牌",
       leave: d.room?.status === "playing" ? "暂时离开这一局？" : "离开房间？",
@@ -1388,6 +1402,12 @@ class CanvasUI {
           cy += 56;
         });
       }
+      if (m === "history") {
+        const g = d.room?.game;
+        const logs = [...(g?.privateLog || []).map(l => "仅你可见 · " + l.text), ...(g?.logs || []).map(l => l.text)];
+        if (!logs.length) p("还没有对局动态");
+        logs.forEach(text => p(text, 13));
+      }
       if (m === "detail" && d.v?.detail) {
         this.card(d.v.detail, px + (pw - 170) / 2, cy, 170, 210);
         cy += 226;
@@ -1453,6 +1473,7 @@ class CanvasUI {
         });
       }
       if (m === "settings") {
+        if (d.room?.game) button("查看对局动态", "history");
         this.switchRow(
           "回合提示音",
           "",
@@ -1745,6 +1766,7 @@ class CanvasUI {
     const a = region.action,
       d = this.page.data;
     const event = { currentTarget: { dataset: { ...region } }, detail: {} };
+    if (a === "history") return this.page.updateData({ modal: "history" });
     if (a === "input") return this.onInput(region.field);
     if (a === "share")
       return this.wx.shareAppMessage(
@@ -1810,6 +1832,7 @@ class CanvasUI {
       modal: !!this.layout.modal,
       offset: this.handOffset,
       scroll: this.layout.modal ? this.modalScroll : this.pageScroll,
+      scrollable: this.layout.screen !== "game" || inside(this.layout.scroll.viewport, p.x, p.y),
       context: this.contextKey,
       modalKey: this.layout.modal,
     };
@@ -1833,7 +1856,7 @@ class CanvasUI {
       } else if (g.modal) {
         if (this.layout.modal !== "create")
           this.modalScroll = clamp(g.scroll - dy, 0, this.modalMax || 0);
-      } else if (this.layout.screen !== "home") {
+      } else if (this.layout.screen !== "home" && g.scrollable) {
         this.pageScroll = clamp(g.scroll - dy, 0, this.pageMax || 0);
       }
       this.render(this.now);
