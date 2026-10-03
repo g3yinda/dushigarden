@@ -33,6 +33,16 @@ const project = JSON.parse(
   app = JSON.parse(fs.readFileSync(path.join(root, "miniprogram/app.json")));
 assert.match(project.appid, /^wx[0-9a-f]{16}$/);
 assert.equal(project.miniprogramRoot, "miniprogram/");
+assert.equal(project.compileType, "game", "当前AppID使用小游戏工程");
+for (const suffix of [".wxml", ".wxss"])
+  assert(project.packOptions.ignore.some(item => item.type === "suffix" && item.value === suffix), "小游戏包不能包含旧页面标记或样式");
+for (const file of ["game.js", "game.json", "lib/game-runtime.js", "lib/canvas-ui.js"])
+  assert(fs.existsSync(path.join(root, "miniprogram", file)), `小游戏入口缺失：${file}`);
+const game = JSON.parse(fs.readFileSync(path.join(root, "miniprogram/game.json")));
+assert.equal(game.deviceOrientation, "portrait");
+assert.equal(game.workers, "workers", "RC开发工具需要有效的Worker预编译目录");
+assert(fs.existsSync(path.join(root, "miniprogram", game.workers, "compat.js")));
+assert(game.networkTimeout.request >= 25000, "长轮询需要25秒请求超时");
 for (const page of app.pages) {
   for (const ext of ["js", "json", "wxml", "wxss"])
     assert(
@@ -55,7 +65,7 @@ const packageSize = walk(path.join(root, "miniprogram")).reduce(
 );
 assert(packageSize < 2 * 1024 * 1024, "小程序资源超过 2 MiB");
 console.log(
-  `语法、配置、页面与资源检查通过；小程序源码包约 ${(packageSize / 1024 / 1024).toFixed(2)} MiB。`,
+  `语法、小游戏入口、兼容页面与资源检查通过；源码包约 ${(packageSize / 1024 / 1024).toFixed(2)} MiB。`,
 );
 if (process.argv.includes("--release")) {
   const config = require("../miniprogram/config");

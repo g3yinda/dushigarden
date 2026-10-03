@@ -1,6 +1,6 @@
 const U = require("../../lib/controller");
 const config = require("../../config");
-Page({
+const definition = {
   data: {
     room: null,
     v: {},
@@ -59,6 +59,7 @@ Page({
   onShow() {
     this.visible = true;
     if (this.data.room) this.poll();
+    clearInterval(this.clock);
     this.clock = setInterval(() => this.tick(), 250);
   },
   onHide() {
@@ -578,4 +579,7 @@ Page({
       this.updateData({ busy: false });
     }
   },
-});
+};
+// The same state/actions power both the legacy Page and the Canvas mini-game.
+if (typeof module === "object") module.exports = definition;
+if (typeof Page === "function") Page(definition);
