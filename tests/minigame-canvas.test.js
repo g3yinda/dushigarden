@@ -878,3 +878,15 @@ test("compact reorder buttons submit the exact chosen future permutation", () =>
   x.accept(r);x.tap(x.find("future-down","f1"));x.tap(x.find("orderFuture"));
   assert.deepEqual(JSON.parse(JSON.stringify(x.calls.at(-1))),{action:"orderFuture",order:["f2","f1","f3"]});
 });
+
+test("target dialog shows public hand counts including zero and refreshes them without losing selection", () => {
+  const x=harness(),r=room(),labels=[];
+  r.game.players[1].count=0;r.game.players[2].count=1;r.game.players[3].count=37;
+  x.ui.ctx.fillText=(text)=>labels.push(text);
+  x.accept(r,["c6"]);x.tap(x.find("prepare"));
+  for(const count of [0,1,37]) assert(labels.includes("剩余 "+count+" 张牌"));
+  x.tap(x.find("target","p2"));labels.length=0;r.game.players[2].count=7;
+  x.accept(r,["c6"]);
+  assert(labels.includes("剩余 7 张牌"));assert.equal(x.page.data.target,"p2");
+  assert.equal(x.ui.layout.scroll.max,0);
+});

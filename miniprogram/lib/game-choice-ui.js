@@ -267,14 +267,20 @@ function renderChoice(ui, mode) {
         cols = h < 400 ? 3 : 2,
         rows = Math.ceil(targets.length / cols),
         gap = 6;
-      const gridY = cy + 40,
+      const gridY = cy + 36,
         tileW = (pw - gap * (cols - 1)) / cols,
-        rowH = Math.min(90, (buttonY - gridY - 12) / Math.max(1, rows));
+        rowH = Math.min(90, (buttonY - gridY - 8) / Math.max(1, rows));
       targets.forEach((p, i) => {
         const tx = px + (i % cols) * (tileW + gap),
           ty = gridY + Math.floor(i / cols) * rowH,
           th = rowH - 4,
-          as = th < 70 ? 24 : 36;
+          compact = th < 76,
+          as = compact ? 32 : 44,
+          nameSize = compact ? 12 : 14,
+          countSize = compact ? 10 : 11,
+          contentH = as + nameSize + countSize + 6,
+          avatarY = ty + (th - contentH) / 2,
+          nameY = avatarY + as + 3 + nameSize / 2;
         ui.box(
           tx,
           ty,
@@ -284,15 +290,25 @@ function renderChoice(ui, mode) {
           d.target === p.id ? BLUE : LINE,
           14,
         );
-        ui.avatar(p, tx + (tileW - as) / 2, ty + 4, as, d.target === p.id);
+        ui.avatar(p, tx + (tileW - as) / 2, avatarY, as, d.target === p.id);
         ui.text(
           p.name + (p.isMe ? " · 你" : ""),
           tx + tileW / 2,
-          ty + th - 12,
-          11,
+          nameY,
+          nameSize,
           INK,
           "center",
           600,
+          tileW - 8,
+        );
+        ui.text(
+          "剩余 " + p.count + " 张牌",
+          tx + tileW / 2,
+          nameY + nameSize / 2 + 3 + countSize / 2,
+          countSize,
+          MUTED,
+          "center",
+          400,
           tileW - 8,
         );
         ui.region("target", tx, ty, tileW, th, {
