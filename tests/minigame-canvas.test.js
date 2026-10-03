@@ -943,3 +943,83 @@ test("target dialog shows public hand counts including zero and refreshes them w
   assert(labels.includes("剩余 7 张牌"));assert.equal(x.page.data.target,"p2");
   assert.equal(x.ui.layout.scroll.max,0);
 });
+
+test("cozy table keeps seats clear of both piles across 2–6 players and phone proportions", () => {
+  const overlaps = (a,b) => a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+  for (const [w,h] of [[320,568],[360,640],[375,667],[390,844],[430,932]]) {
+    const x=harness(w,h);
+    for(let n=2;n<=6;n++) {
+      x.accept(room(n));
+      assert.equal(x.ui.layout.piles?.length,2,"real deck/discard geometry is exposed for visibility checks");
+      for(const pile of x.ui.layout.piles) for(const seat of x.ui.layout.seats)
+        assert(!overlaps(pile,seat),`${w}x${h}, ${n} players: ${JSON.stringify(pile)} covers ${JSON.stringify(seat)}`);
+      for(let i=0;i<x.ui.layout.seats.length;i++) for(let j=i+1;j<x.ui.layout.seats.length;j++)
+        assert(!overlaps(x.ui.layout.seats[i],x.ui.layout.seats[j]),`${w}x${h}, ${n} players: ${JSON.stringify(x.ui.layout.seats[i])} overlaps ${JSON.stringify(x.ui.layout.seats[j])}`);
+      assert.equal(x.ui.layout.scroll.max,0);
+      assert(x.ui.layout.hand.y+x.ui.layout.hand.h <= x.ui.layout.dock.y-6);
+    }
+  }
+});
+
+test("folded hand exposes names, illustrations and paws instead of vertical names only", () => {
+  for(const [w,h] of [[320,568],[390,844],[430,932]]) {
+    const x=harness(w,h),labels=[],arts=[];
+    const text=x.ui.text.bind(x.ui),cardArt=x.ui.cardArt.bind(x.ui);
+    x.ui.text=(...a)=>{labels.push(a);return text(...a);};
+    x.ui.cardArt=(...a)=>{arts.push(a);return cardArt(...a);};
+    x.accept(room(6,"action",["defuse","nope","cat1","favor","targetAttack","bottom"]));
+    const hand=x.ui.layout.hand;
+    assert.equal(hand.style,"illustrated-fold");
+    const first=x.find("card","c0");
+    assert(first.w>=44 && first.h>=44);
+    assert(labels.some(a=>a[0]==="拆弹" && a[1] >= first.x && a[1] <= first.x+first.w && a[2]>=hand.y));
+    assert(arts.some(a=>a[0].id==="c0" && a[2]>=hand.y && a[4]>=20),"visible strip contains an illustration");
+    assert(hand.faces.every(f=>f.art.y+f.art.h<=f.paw.y-f.paw.size/2 && f.paw.y+f.paw.size/2<=hand.y+hand.h));
+    const before=hand.y;
+    x.tap(first);x.tap(x.find("hand-toggle"));
+    assert.equal(x.ui.layout.hand.y,before);
+    assert.deepEqual(Array.from(x.page.data.selected),["c0"]);
+    x.tap(x.find("clear"));
+    assert(x.page.data.handExpanded);
+  }
+});
+
+test("cozy background is cached through card selection and falls back without blocking play", () => {
+  const x=harness();x.accept(room());
+  assert(x.images.some(im=>im.path==="assets/cozy-room-v1.jpg"));
+  const count=x.images.length;
+  x.tap(x.find("card","c0"));assert.equal(x.images.length,count);
+  const entry=x.ui.images.get("cozy-room-v1.jpg");entry.ready=false;entry.error=true;
+  x.ui.render(1000);
+  assert(x.find("draw") && x.ui.layout.seats.length===6);
+});
+
+test("tall capsule and bottom safe area leave the table and fixed operations on one screen", () => {
+  for(const [w,h] of [[320,568],[360,640],[390,844],[430,932]]) {
+    const x=harness(w,h);
+    x.ui.resize({windowWidth:w,windowHeight:h,pixelRatio:3,statusBarHeight:44,menu:{bottom:94},safeArea:{bottom:h-34}});
+    x.accept(room());
+    const {table,hand,dock,seats,piles}=x.ui.layout;
+    assert(table.y>=102 && table.y+table.h<hand.y);
+    assert(hand.y+hand.h<=dock.y-6);
+    for(const a of ["prepare","draw","nope-pass","nope-response"]) {
+      const r=x.find(a);assert(r.h>=44 && r.y+r.h<=h-34);
+    }
+    for(const s of seats)assert(s.y>=table.y&&s.y+s.h<=table.y+table.h);
+    for(const pile of piles)for(const s of seats)
+      assert(pile.x+pile.w<=s.x||pile.x>=s.x+s.w||pile.y+pile.h<=s.y||pile.y>=s.y+s.h);
+    assert.equal(x.ui.layout.scroll.max,0);
+  }
+});
+
+test("public imploding warnings live beside the deck and clear the local portrait", () => {
+  for(const [w,h] of [[320,568],[390,844],[430,932]])for(const warning of ["deckTop","deckBottom"]) {
+    const x=harness(w,h),labels=[],text=x.ui.text.bind(x.ui);
+    x.ui.text=(...a)=>{labels.push(a);return text(...a);};
+    const r=room();r.game[warning]={type:"imploding",faceUp:true};x.accept(r);
+    const me=x.ui.layout.seats.find(s=>s.isMe);
+    const warnings=labels.filter(a=>a[0].includes("有内爆猫")||a[0].includes("有翻面内爆猫"));
+    assert.equal(warnings.length,1,"avoid duplicate danger text over the local avatar");
+    assert(warnings[0][2]+warnings[0][3]/2<=me.y-3);
+  }
+});

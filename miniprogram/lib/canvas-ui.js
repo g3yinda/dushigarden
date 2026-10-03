@@ -1,6 +1,7 @@
 const U = require("./controller");
 const Choices = require("./game-choice-ui");
 const { renderBombFX } = require("./bomb-fx");
+const Cozy = require("./cozy-table-ui");
 const C = {
   bg: "#f5f5f7",
   white: "#ffffff",
@@ -768,6 +769,7 @@ class CanvasUI {
     const d = this.page.data,
       v = d.v || {},
       g = d.room.game;
+    Cozy.drawBackdrop(this);
     this.header("炸毛猫咪", "房间号 " + d.room.code);
     const finished = g.phase === "finished";
     if (!finished) return this.activeGame();
@@ -870,7 +872,9 @@ class CanvasUI {
     const top = this.top + 54;
     const available = dockY - top;
     const compact = available < 450;
-    const handH = compact ? 142 : 204;
+    const handH = compact
+      ? clamp(Math.round(available * 0.46), 106, 154)
+      : clamp(Math.round(available * 0.33), 192, 220);
     const handY = dockY - handH - 6;
     const tableH = handY - top - 6;
     this.layout.dock = { x: 18, y: dockY, w: this.w - 36, h: 118 };
@@ -887,22 +891,16 @@ class CanvasUI {
     };
     this.layout.scroll = { max: 0, offset: 0, viewport };
     this.layout.privatePanel = null;
+    this.box(0, handY, this.w, this.h - handY, "rgba(250,250,252,.96)", null, 24);
     if (giving) this.box(12, handY, this.w - 24, handH - 1, null, C.blue, 18);
-    if (tableH >= 260 && (v.deckTop || v.deckBottom))
-      this.text(
-        "✹ " + (v.deckTop ? "牌顶" : "牌底") + "有翻面内爆猫",
-        this.w / 2,
-        top + tableH - 62,
-        10,
-        C.red,
-        "center",
-        600,
-        this.w - 100,
-      );
     this.clip({ x: 0, y: handY, w: this.w, h: handH }, () => {
       this.hand(
         handY,
-        compact ? { header: 36, width: 96, height: 90 } : undefined,
+        {
+          header: compact ? 44 : 48,
+          width: compact ? 96 : 112,
+          height: handH - (compact ? 64 : 68),
+        },
       );
       if (giving) {
         const actor = v.players.find((p) => p.id === g.pending?.actor);
@@ -934,207 +932,7 @@ class CanvasUI {
     this.motion(d.motionItems || []);
   }
   board(y, h) {
-    const d = this.page.data,
-      v = d.v,
-      g = d.room.game,
-      x = 12,
-      w = this.w - 24;
-    this.layout.table = { x, y, w, h };
-    this.box(x, y, w, h, "#faf8f4", null, 28);
-    const c = this.ctx;
-    c.beginPath();
-    c.ellipse(x + w / 2, y + h / 2, w * 0.42, h * 0.4, 0, 0, Math.PI * 2);
-    c.fillStyle = "#f2ece2";
-    c.fill();
-    c.lineWidth = 8;
-    c.strokeStyle = "#eadfcf";
-    c.stroke();
-    c.lineWidth = 1;
-    const compact = h < 260;
-    const portrait = compact
-      ? clamp(Math.floor((h * 0.23) / 2) * 2, 36, 42)
-      : clamp(Math.floor(Math.min(w * 0.17, h * 0.16) / 2) * 2, 48, 64);
-    const timer = d.nopeInfo?.done
-      ? "已响应"
-      : d.countdown === null
-        ? "∞"
-        : (d.countdown || 0) + "s";
-    const summary =
-      g.phase === "finished"
-        ? v.winnerName + "获胜"
-        : `${v.phaseTitle} · ${g.remaining} 回合 · ${timer}`;
-    (v.tablePlayers || []).forEach((p, i) => {
-      const match = p.seatStyle?.match(
-        /left:([\d.]+)%;top:clamp\(52px,([\d.]+)%/,
-      );
-      const px = match ? Number(match[1]) : 50,
-        py = match ? Number(match[2]) : i ? 10 : 90;
-      const as = p.isMe && compact ? portrait + 4 : portrait,
-        sw = p.isMe ? (compact ? 154 : 180) : compact ? 88 : portrait + 40,
-        sh = p.isMe ? as + (compact ? 0 : 8) : as + 3 + (compact ? 16 : 40);
-      const sx = clamp(
-        x + (w * px) / 100 - (p.isMe ? as / 2 : sw / 2),
-        x + 3,
-        x + w - sw - 3,
-      );
-      const sy = clamp(
-        y +
-          clamp((h * py) / 100, compact ? 30 : 52, h - 24) -
-          (p.isMe && compact ? 20 : sh / 2),
-        y + 4,
-        y + h - sh - 4,
-      );
-      const ax = p.isMe ? sx : sx + (sw - as) / 2;
-      this.avatar(p, ax, sy, as, p.active && g.phase !== "finished");
-      if (p.isMe) {
-        this.text(
-          p.name + " · 你",
-          sx + as + 12,
-          sy + (compact ? 20 : 22),
-          compact ? 14 : 16,
-          C.ink,
-          "left",
-          600,
-          sw - as - 12,
-        );
-        this.text(
-          !p.alive
-            ? "已出局"
-            : compact
-              ? `${v.phaseTitle}·${g.remaining}回合·${timer}`
-              : p.count + " 张牌",
-          sx + as + 12,
-          sy + (compact ? 34 : 44),
-          compact ? 8 : 11,
-          C.muted,
-          "left",
-          400,
-          sw - as - 12,
-        );
-      } else {
-        const labelY = sy + as + 3;
-        this.box(sx, labelY, sw, compact ? 16 : 40, "#faf8f4", null, 10);
-        if (compact) {
-          const count = p.alive ? p.count + " 张" : "出局";
-          this.font(9);
-          const countW = this.ctx.measureText(count).width;
-          this.font(11, 600);
-          const nameW = Math.min(
-              this.ctx.measureText(p.name).width,
-              sw - countW - 14,
-            ),
-            labelX = sx + (sw - nameW - countW - 6) / 2;
-          this.text(p.name, labelX, labelY + 8, 11, C.ink, "left", 600, nameW);
-          this.text(count, labelX + nameW + 6, labelY + 8, 9, C.muted, "left");
-        } else {
-          this.text(
-            p.name,
-            sx + sw / 2,
-            labelY + 12,
-            portrait >= 60 ? 15 : 14,
-            C.ink,
-            "center",
-            600,
-            sw - 6,
-          );
-          this.text(
-            p.alive ? p.count + " 张牌" : "已出局",
-            sx + sw / 2,
-            labelY + 31,
-            11,
-            C.muted,
-            "center",
-          );
-        }
-      }
-      this.layout.seats.push({
-        x: sx,
-        y: sy,
-        w: sw,
-        h: sh,
-        id: p.id,
-        isMe: p.isMe,
-      });
-    });
-    const cw = compact ? 48 : 74,
-      ch = compact ? 40 : 100,
-      centerY = y + (compact ? Math.max(57, 0.34 * h) : 0.32 * h),
-      leftX = this.w / 2 - cw - 10,
-      rightX = this.w / 2 + 10;
-    const danger =
-      compact && (v.deckTop ? "牌顶" : v.deckBottom ? "牌底" : null);
-    this.box(
-      leftX,
-      centerY,
-      cw,
-      ch,
-      danger ? "#fff1f2" : "#dceaff",
-      danger ? C.red : C.blue,
-      10,
-    );
-    this.text(
-      compact && !danger ? "剩余" : "🐾",
-      leftX + cw / 2,
-      centerY + (compact ? 10 : ch / 2),
-      compact && !danger ? 9 : danger ? 14 : 28,
-      danger ? C.red : C.blue,
-      "center",
-    );
-    if (compact)
-      this.text(
-        g.deckCount + " 张",
-        leftX + cw / 2,
-        centerY + ch - 10,
-        danger ? 13 : 16,
-        danger ? C.red : C.blue,
-        "center",
-        700,
-      );
-    if (!compact || danger)
-      this.text(
-        danger ? danger + "有内爆猫" : "剩余 " + g.deckCount + " 张",
-        leftX + cw / 2,
-        centerY + ch + (compact ? 4 : 12),
-        danger ? 9 : compact ? 11 : 14,
-        danger ? C.red : C.blue,
-        "center",
-        700,
-        cw + 12,
-      );
-    if (v.discard && compact) {
-      this.box(rightX, centerY, cw, ch, C.white, C.line, 10);
-      this.cardArt(v.discard, rightX + 3, centerY + 3, cw - 6, ch - 6);
-    } else if (v.discard) this.card(v.discard, rightX, centerY, cw, ch);
-    else {
-      this.box(rightX, centerY, cw, ch, null, C.line, 10);
-      this.text(
-        "出牌区",
-        rightX + cw / 2,
-        centerY + ch / 2,
-        11,
-        C.muted,
-        "center",
-      );
-    }
-    this.text(
-      compact && v.discard ? v.discard.name : "弃牌堆",
-      rightX + cw / 2,
-      centerY + ch + (compact ? 5 : 12),
-      compact ? 9 : 11,
-      C.muted,
-      "center",
-    );
-    if (!compact)
-      this.text(
-        summary,
-        this.w / 2,
-        centerY + ch + (compact ? 29 : 34),
-        compact ? 10 : 12,
-        C.blue,
-        "center",
-        600,
-        w - 12,
-      );
+    Cozy.drawBoard(this, y, h);
   }
   hand(y, sizing = {}) {
     const d = this.page.data,
@@ -1161,14 +959,16 @@ class CanvasUI {
     y += sizing.header || 48;
     const cw = sizing.width || 112,
       ch = sizing.height || 136;
-    const row = { x, y: y - 14, w, h: ch + 20 };
+    const row = { x, y: y - 12, w, h: ch + 24 };
+    const foldedW = ch < 100 ? 64 : 70, step = 44;
     let positions = [],
       next = 0;
     cards.forEach((card) => {
       positions.push(next);
-      next += d.handExpanded || card.selected ? cw + 8 : 44;
+      next += d.handExpanded || card.selected ? cw + 8 : step;
     });
-    const total = cards.length ? positions[positions.length - 1] + cw : 0;
+    const last = cards[cards.length - 1];
+    const total = cards.length ? positions[positions.length - 1] + (d.handExpanded || last.selected ? cw : foldedW) : 0;
     const max = Math.max(0, total - w);
     this.handOffset = clamp(this.handOffset, 0, max);
     this.layout.hand = {
@@ -1181,18 +981,23 @@ class CanvasUI {
       viewport: row,
       total,
       giving,
+      style: "illustrated-fold",
+      faces: [],
     };
     this.clip(row, () => {
       cards.forEach((card, i) => {
         const cx = x + positions[i] - this.handOffset,
           cy =
             y - (card.selected ? Math.min(12, (sizing.header || 48) - 36) : 0);
-        this.card(card, cx, cy, cw, ch, {
-          hand: true,
-          selected: card.selected,
-        });
+        const full = d.handExpanded || card.selected;
+        if (full)
+          this.card(card, cx, cy, cw, ch, { hand: true, selected: card.selected });
+        else
+          this.layout.hand.faces.push(
+            Cozy.drawFoldedCard(this, card, cx, cy, foldedW, ch, step),
+          );
         const hitW =
-          i === cards.length - 1 ? cw : positions[i + 1] - positions[i];
+          i === cards.length - 1 ? (full ? cw : foldedW) : positions[i + 1] - positions[i];
         this.region("card", cx, cy, hitW, ch, { id: card.id, hand: true });
       });
       if (!cards.length)

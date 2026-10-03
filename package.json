@@ -1,6 +1,6 @@
 {
   "name": "boomcat-friends",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "private": true,
   "description": "朋友局 · 2–6 人炸毛猫咪微信小游戏",
   "engines": {
