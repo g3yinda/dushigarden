@@ -131,7 +131,8 @@ function accept(r) {
   S.selected = S.selected.filter((id) => r.game?.hand.some((c) => c.id === id));
   if (S.modal === "close-room" && !U.derive(r, S.selected).isHost) S.modal = null;
   if (old?.code !== r.code || U.contextChanged(old, r)) {
-    if (old?.code !== r.code || !["leave", "close-room"].includes(S.modal)) S.modal = null;
+    if (old?.code !== r.code || (!["leave", "close-room"].includes(S.modal)
+      && !(S.modal === "history" && old?.game?.id === r.game?.id))) S.modal = null;
     S.target = "";
     S.position = 1;
     if (S.settings.sound) tone();
@@ -282,15 +283,7 @@ function game(r, v) {
   const g = r.game;
   const finished = g.phase === "finished";
   const table = `<div class="board-stage" aria-label="大家的共同牌桌"><div class="table-felt"></div>${v.tablePlayers.map((p) => `<div data-render-key="table:${esc(p.id)}" class="table-seat ${p.isMe ? "self-seat" : ""} ${p.active && !finished ? "active" : ""} ${!p.alive ? "out" : ""}" style="${p.seatStyle}">${avatar(p)}<div class="seat-info"><strong>${esc(p.name)}${p.isMe ? " · 你" : ""}</strong><span>${p.alive ? p.count + " 张牌" : "已出局"}</span></div>${p.active && !finished ? '<span class="turn-dot" aria-label="正在行动"></span>' : ""}</div>`).join("")}<div class="board-center"><div class="turn-label"><strong>${esc(finished ? v.winnerName + "获胜" : v.phaseTitle)}</strong>${!finished ? `<span>${g.remaining} 回合 · <span data-countdown></span></span>` : "<span>最后的幸存者 🐾</span>"}</div><div class="piles"><div class="pile"><div class="card-back">🐾</div><span>牌堆 ${g.deckCount}</span></div><div class="pile">${v.discard ? card(v.discard) : '<div class="empty-pile">出牌区</div>'}<span>弃牌堆</span></div></div></div></div>`;
-  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸毛猫咪</h2><p class="muted">房间号 ${esc(r.code)}</p></div>${btn("⚙", "settings", "circle")}</div><div class="game-room">${table}${v.deckTop || v.deckBottom ? `<div class="deck-hazards" role="status">${v.deckTop ? "✹ 牌顶：翻面内爆猫 · 抽到即出局" : ""}${v.deckTop && v.deckBottom ? "<br>" : ""}${v.deckBottom ? "✹ 牌底：翻面内爆猫 · 抽到即出局" : ""}</div>` : ""}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn(`<span class="hand-toggle-label">取消选择</span>`, "clear", "text-btn hand-toggle hand-clear") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div>${S.selected.length ? `<div class="selection-preview"><div class="selection-title">已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div>${!v.selection.valid && !v.canGive ? `<p>${esc(v.selection.hint)}</p>` : ""}</div>` : ""}<div class="table-dock">${nopeBar()}<div class="action-bar table-actions" role="group" aria-label="对局操作">${v.canGive ? btn("交牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张" : ""), "prepare", "primary", !v.selection.valid)}${btn("抽牌", "draw", "secondary", !v.canDraw)}</div></div></div>`}</div><details class="logs"><summary>对局动态 · 点击展开</summary>${(
-    v.privateLog || []
-  )
-    .slice(-3)
-    .map((l) => `<p class="private-log">仅你可见 · ${esc(l.text)}</p>`)
-    .join("")}${(v.logs || [])
-    .slice(-5)
-    .map((l) => `<p>${esc(l.text)}</p>`)
-    .join("")}</details>`;
+  return `<div class="top game-header">${btn("‹", "leave", "circle")}<div class="roomtitle"><h2>炸毛猫咪</h2><p class="muted">房间号 ${esc(r.code)}</p></div><div class="game-tools">${btn('<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12C7 3 17 3 23 12C17 21 7 21 1 12Z"/><circle cx="12" cy="12" r="3"/></svg>', "history", "circle history-eye", false, 'aria-label="查看对局记录"')}${btn("⚙", "settings", "circle", false, 'aria-label="设置"')}</div></div><div class="game-room">${table}${v.deckTop || v.deckBottom ? `<div class="deck-hazards" role="status">${v.deckTop ? "✹ 牌顶：翻面内爆猫 · 抽到即出局" : ""}${v.deckTop && v.deckBottom ? "<br>" : ""}${v.deckBottom ? "✹ 牌底：翻面内爆猫 · 抽到即出局" : ""}</div>` : ""}${finished ? `<div class="winner"><h2>${esc(v.winnerName)}获胜</h2><p class="muted space">这一次，幸运站在你这边。</p>${v.isHost ? btn("再来一局", "rematch") : '<p class="muted space">等待房主再开一局</p>'}${btn("返回大厅", "leave", "secondary")}</div>` : `<div class="hand-area">${phase(r, v)}${!v.alive ? '<div class="notice">你已出局，正在旁观。</div>' : ""}<div class="hand-caption"><strong>手牌 <span>${g.hand.length}</span></strong><div class="hand-controls">${btn(`<span class="hand-toggle-label">${S.handExpanded ? "收起手牌" : "展开手牌"}<span class="hand-chevron ${S.handExpanded ? "up" : ""}" aria-hidden="true"></span></span>`, "hand-toggle", "text-btn hand-toggle", false, `aria-expanded="${S.handExpanded}"`)}${S.selected.length ? btn(`<span class="hand-toggle-label">取消选择</span>`, "clear", "text-btn hand-toggle hand-clear") : ""}</div></div><div class="hand ${S.handExpanded ? "expanded" : ""}" role="group" aria-label="可滑动的手牌"><div class="hand-row">${g.hand.map((c) => card(c, true)).join("")}</div></div>${S.selected.length ? `<div class="selection-preview"><div class="selection-title">已选 ${v.selectedCards.length} 张 · ${v.selectedCards.map((c) => esc(c.name)).join("、")}${S.selected.length === 1 ? btn("详情", "detail", "text-btn") : ""}</div>${!v.selection.valid && !v.canGive ? `<p>${esc(v.selection.hint)}</p>` : ""}</div>` : ""}<div class="table-dock">${nopeBar()}<div class="action-bar table-actions" role="group" aria-label="对局操作">${v.canGive ? btn("交牌", "give") : btn("打出" + (S.selected.length > 1 ? " · " + S.selected.length + " 张" : ""), "prepare", "primary", !v.selection.valid)}${btn("抽牌", "draw", "secondary", !v.canDraw)}</div></div></div>`}</div>`;
 }
 function phase(r, v) {
   let g = r.game;
@@ -345,6 +338,10 @@ function modal() {
       title = "轻松一点，按你的习惯";
       body = `<label class="switch">减弱动态<input id="reduced" type="checkbox" ${S.settings.reduced ? "checked" : ""}></label><label class="switch">回合提示音<input id="sound" type="checkbox" ${S.settings.sound ? "checked" : ""}></label><p>开启后，在阶段变化时播放轻柔提示音。</p>${btn("玩法说明", "rules", "secondary")}`;
       break;
+    case "history":
+      title = "对局记录";
+      body = `<div class="history-content">${v.history.length ? v.history.map((entry, index) => `<p class="${entry.private ? "private-log" : ""}">${index + 1} · ${entry.private ? "仅你可见 · " : ""}${esc(entry.text)}</p>`).join("") : '<p>还没有对局记录</p>'}</div>`;
+      break;
     case "rules":
       title = "活到最后，就赢了";
       body = `<ol><li>2–6 位朋友，每人 8 张牌，至少有 1 张拆弹。2–5 人用基础版，6 人加入完整内爆猫扩展。</li><li>轮到你，可以先出牌，再抽一张结束回合。抽到炸弹，拆弹保命；没有拆弹则出局。</li><li>攻击把回合转给下家，跳过免抽一次。预知、索要、洗牌用完仍需继续行动。</li><li>否定时长可选10、20、30秒或不限时，默认10秒。开启“可循环否定”后可反否定，每层独立响应。</li><li>两张同名随机拿对方一张牌；三张同名指定想要的牌名，没有则落空。</li><li>超时会自动抽牌、拆弹或完成必选操作；断线不暂停整桌。</li></ol><p>六人扩展：内爆猫首次抽到翻面秘密插回，再次抽到直接出局；不能拆弹。定向攻击可指定自己，反转改变方向并免抽一个回合，抽牌底从底部抽牌，调整未来可秘密重排前三张。野猫只能替代普通猫组成组合。</p><p>拆弹后的炸弹可放在牌堆任意位置，只有你知道。最后一只存活的猫获胜。</p>`;
@@ -371,7 +368,7 @@ function modal() {
       body = `<p class="close-explanation">当前对局将立即终止，不产生胜者。所有成员返回大厅，房间号失效。</p><p class="muted space">关闭后无法恢复这一局。</p>${btn("确认关闭房间", "close-room-submit", "danger-primary")}${btn("继续游戏", "close", "secondary")}`;
       break;
   }
-  return `<div class="overlay-screen ${S.modal === "create" ? "create-overlay" : ""} ${["play", "create", "close-room"].includes(S.modal) ? "centered" : ""}"><section class="sheet ${S.modal === "create" ? "create-sheet" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
+  return `<div class="overlay-screen ${S.modal === "create" ? "create-overlay" : ""} ${["play", "create", "close-room", "history"].includes(S.modal) ? "centered" : ""}"><section class="sheet ${S.modal === "create" ? "create-sheet" : S.modal === "history" ? "history-sheet" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="top"><h2>${title}</h2>${btn("×", "close", "circle")}</div>${body}</section></div>`;
 }
 function render() {
   document.body.classList.toggle("reduced", S.settings.reduced);
@@ -493,7 +490,7 @@ document.addEventListener("click", async (e) => {
     }
     if (a === "bots-submit") return await addBots();
     if (
-      ["settings", "profile", "join", "rules", "leave", "detail"].includes(a)
+      ["settings", "history", "profile", "join", "rules", "leave", "detail"].includes(a)
     ) {
       S.modal = a;
       render();

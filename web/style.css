@@ -1522,3 +1522,13 @@ body.home-page { overflow: hidden; overscroll-behavior-y: none; }
 /* Keep the illustrated home title in sync with the current game name. */
 .hero-title { position: absolute; left: 3.2%; top: 7.3%; width: 52%; height: 14%; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #fff0cf; color: #3b2416; font-size: min(8.5vw, calc(8.64vh - 25.4px), 36px); font-weight: 800; line-height: 1; white-space: nowrap; }
 .has-resume .hero-title { font-size: min(8.5vw, calc(8.64vh - 30.5px), 36px); }
+
+/* Match tools reuse the existing circular settings button. */
+.game-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 94px; gap: 6px; }
+.game-tools { display: flex; gap: 6px; align-items: center; }
+.game-tools .circle { flex: 0 0 44px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.history-eye svg { width: 24px; height: 24px; fill: none; stroke: #0071e3; stroke-width: 2; stroke-linejoin: round; }
+.history-eye svg circle { fill: #0071e3; stroke: none; }
+.history-sheet { display: flex; flex-direction: column; overflow: hidden; }
+.history-content { overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.history-content p { padding: 10px 0; margin: 0; border-bottom: 1px solid #f0f0f0; color: #1d1d1f; }

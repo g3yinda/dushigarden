@@ -1141,3 +1141,20 @@ test('新动物图集和微信头像按来源缓存，重复点击不闪烁，�
   assert.equal(x.images.filter(i=>i.path===url).length,1);
   x.images.find(i=>i.path===url).onerror();assert.doesNotThrow(()=>x.ui.render(1000));
 });
+
+test("五屏游戏标题与眼睛/设置按钮不重叠，眼睛可打开完整记录", () => {
+  for (const [w,h] of [[320,568],[360,640],[375,667],[390,844],[430,932]]) {
+    const x=harness(w,h),r=room();
+    r.game.logs=Array.from({length:45},(_,i)=>({id:i*2+1,text:`公开记录 ${i}`}));
+    r.game.privateLog=[{id:2,text:"抽到「跳过」"}];
+    x.accept(r);
+    const eye=x.find("history"),settings=x.find("settings");
+    assert(eye, `${w} screen history entry`);
+    assert.equal(eye.w,44);assert.equal(eye.h,44);
+    assert.equal(settings.x,w-62);assert(eye.x+eye.w<=settings.x-4);
+    x.tap(eye);assert.equal(x.page.data.modal,"history");
+    assert(x.find("close"));assert(x.ui.modalMax>0);
+    x.tap(x.find("close"));assert.equal(x.page.data.modal,"");
+    x.tap(x.find("settings"));assert.equal(x.page.data.modal,"settings");
+  }
+});

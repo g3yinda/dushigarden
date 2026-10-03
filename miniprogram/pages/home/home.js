@@ -223,7 +223,8 @@ const definition = {
       r.game?.hand.some((c) => c.id === id),
     );
     const changed = old?.code !== r.code || U.contextChanged(old, r);
-    const keepExit = old?.code === r.code && ["leave", "close-room"].includes(this.data.modal);
+    const keepExit = old?.code === r.code && (["leave", "close-room"].includes(this.data.modal)
+      || (this.data.modal === "history" && old?.game?.id === r.game?.id));
     const effects = U.motions(old, r);
     const v = U.derive(r, selected, this.data.localMode);
     const named = v.namedOptions.some(c => c.value === this.data.named) ? this.data.named : "defuse";
@@ -482,7 +483,7 @@ const definition = {
       }
       if (a === "bots-submit") return await this.addBots();
       if (
-        ["settings", "rules", "profile", "join", "leave", "detail"].includes(a)
+        ["settings", "history", "rules", "profile", "join", "leave", "detail"].includes(a)
       ) {
         this.updateData({ modal: a });
         return;

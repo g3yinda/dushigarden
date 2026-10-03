@@ -223,6 +223,10 @@
     const base = {
       logs: displayLogs(g?.logs),
       privateLog: displayLogs(g?.privateLog),
+      history: [
+        ...displayLogs(g?.logs).map(entry => ({ ...entry, private: false })),
+        ...displayLogs(g?.privateLog).map(entry => ({ ...entry, private: true })),
+      ].sort((a, b) => a.id - b.id),
       players: ps,
       rulesLabel: g?.rulesVersion === "ek-original-2025-friends-6p-v1"
         ? "六人朋友规则（旧局）"

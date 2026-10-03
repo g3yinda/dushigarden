@@ -33,12 +33,10 @@ function player(g, id) {
 }
 function log(g, text, cardEvent = null) {
   g.logs.push({ id: ++g.eventId, text, ...(cardEvent ? { cardEvent } : {}) });
-  g.logs = g.logs.slice(-30);
 }
 function privateLog(g, id, text) {
   g.privateLogs[id] ||= [];
   g.privateLogs[id].push({ id: ++g.eventId, text });
-  g.privateLogs[id] = g.privateLogs[id].slice(-8);
 }
 function phase(g, name, now) {
   g.phase = name;

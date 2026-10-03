@@ -420,11 +420,32 @@ class CanvasUI {
       this.text("✓", x + w - 13.5, y + 13.5, 12, C.white, "center", 600);
     }
   }
-  header(title, subtitle) {
+  header(title, subtitle, withHistory = false) {
     this.button("‹", "leave", 18, this.top, 44, 44, { pill: true, size: 28 });
-    this.text(title, this.w / 2, this.top + 16, 22, C.ink, "center", 600);
+    const titleX = this.w / 2 - (withHistory ? 25 : 0);
+    const titleWidth = this.w - (withHistory ? 190 : 144);
+    this.text(title, titleX, this.top + 16, 22, C.ink, "center", 600, titleWidth);
     if (subtitle)
-      this.text(subtitle, this.w / 2, this.top + 37, 11, C.muted, "center");
+      this.text(subtitle, titleX, this.top + 37, 11, C.muted, "center", 400, titleWidth);
+    if (withHistory) {
+      const x = this.w - 112, cx = x + 22, cy = this.top + 22, c = this.ctx;
+      this.button("", "history", x, this.top, 44, 44, { pill: true, label: "查看对局记录" });
+      c.save();
+      c.strokeStyle = this.page.data.busy ? "#959aa2" : C.blue;
+      c.fillStyle = c.strokeStyle;
+      c.lineWidth = 2;
+      c.lineJoin = "round";
+      c.beginPath();
+      c.moveTo(cx - 11, cy);
+      c.bezierCurveTo(cx - 5, cy - 9, cx + 5, cy - 9, cx + 11, cy);
+      c.bezierCurveTo(cx + 5, cy + 9, cx - 5, cy + 9, cx - 11, cy);
+      c.closePath();
+      c.stroke();
+      c.beginPath();
+      c.arc(cx, cy, 3, 0, Math.PI * 2);
+      c.fill();
+      c.restore();
+    }
     this.button("⚙", "settings", this.w - 62, this.top, 44, 44, {
       pill: true,
       size: 22,
@@ -766,7 +787,7 @@ class CanvasUI {
       v = d.v || {},
       g = d.room.game;
     Cozy.drawBackdrop(this);
-    this.header("炸毛猫咪", "房间号 " + d.room.code);
+    this.header("炸毛猫咪", "房间号 " + d.room.code, true);
     const finished = g.phase === "finished";
     if (!finished) return this.activeGame();
     const dockH = finished ? 0 : 118;
@@ -1164,7 +1185,7 @@ class CanvasUI {
       join: "加入朋友的房间",
       bots: "添加验证 Bot",
       settings: "按你的习惯",
-      history: "对局动态",
+      history: "对局记录",
       rules: "活到最后，就赢了",
       play: d.v?.selection?.needsTarget ? d.v.targetLabel : "确认出牌",
       leave: d.room?.status === "playing" ? "暂时离开这一局？" : "离开房间？",
@@ -1243,13 +1264,12 @@ class CanvasUI {
         });
       }
       if (m === "history") {
-        const g = d.room?.game;
-        const logs = [
-          ...(d.v.privateLog || []).map((l) => "仅你可见 · " + l.text),
-          ...(d.v.logs || []).map((l) => l.text),
-        ];
-        if (!logs.length) p("还没有对局动态");
-        logs.forEach((text) => p(text, 13));
+        const entries = d.v.history || [];
+        if (!entries.length) p("还没有对局记录");
+        entries.forEach((entry, index) => p(
+          `${index + 1} · ${entry.private ? "仅你可见 · " : ""}${entry.text}`,
+          14, entry.private ? C.blue : C.ink,
+        ));
       }
       if (m === "detail" && d.v?.detail) {
         this.card(d.v.detail, px + (pw - 170) / 2, cy, 170, 210);
@@ -1314,7 +1334,7 @@ class CanvasUI {
         });
       }
       if (m === "settings") {
-        if (d.room?.game) button("查看对局动态", "history");
+        if (d.room?.game) button("查看对局记录", "history");
         this.switchRow(
           "回合提示音",
           "",
