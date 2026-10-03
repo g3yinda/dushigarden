@@ -894,13 +894,13 @@ class CanvasUI {
         const actor = v.players.find((p) => p.id === g.pending?.actor);
         this.text(
           (actor?.name || "对方") + "索要 1 张 · 选牌后点交牌",
-          18,
-          dockY - 14,
+          this.w / 2,
+          dockY - 17,
           10,
           C.blue,
-          "left",
+          "center",
           600,
-          this.w - 36,
+          this.w - 56,
         );
       }
       if (!giving && d.selected?.length && !v.selection?.valid && !v.canGive)
@@ -1036,30 +1036,34 @@ class CanvasUI {
       10,
     );
     this.text(
-      "🐾",
+      compact && !danger ? "剩余" : "🐾",
       leftX + cw / 2,
-      centerY + ch / 2 - (danger ? 5 : 0),
-      danger ? 18 : 28,
+      centerY + (compact ? 10 : ch / 2),
+      compact && !danger ? 9 : danger ? 14 : 28,
       danger ? C.red : C.blue,
       "center",
     );
-    if (danger)
+    if (compact)
       this.text(
-        "牌堆 " + g.deckCount,
+        g.deckCount + " 张",
         leftX + cw / 2,
-        centerY + ch - 7,
-        8,
-        C.red,
+        centerY + ch - 10,
+        danger ? 13 : 16,
+        danger ? C.red : C.blue,
         "center",
+        700,
       );
-    this.text(
-      danger ? danger + "有内爆猫" : "牌堆 " + g.deckCount,
-      leftX + cw / 2,
-      centerY + ch + (compact ? 10 : 12),
-      compact ? 9 : 11,
-      danger ? C.red : C.muted,
-      "center",
-    );
+    if (!compact || danger)
+      this.text(
+        danger ? danger + "有内爆猫" : "剩余 " + g.deckCount + " 张",
+        leftX + cw / 2,
+        centerY + ch + (compact ? 4 : 12),
+        danger ? 9 : compact ? 11 : 14,
+        danger ? C.red : C.blue,
+        "center",
+        700,
+        cw + 12,
+      );
     if (v.discard && compact) {
       this.box(rightX, centerY, cw, ch, C.white, C.line, 10);
       this.cardArt(v.discard, rightX + 3, centerY + 3, cw - 6, ch - 6);
@@ -1078,7 +1082,7 @@ class CanvasUI {
     this.text(
       compact && v.discard ? v.discard.name : "弃牌堆",
       rightX + cw / 2,
-      centerY + ch + (compact ? 10 : 12),
+      centerY + ch + (compact ? 5 : 12),
       compact ? 9 : 11,
       C.muted,
       "center",
@@ -1883,6 +1887,48 @@ class CanvasUI {
       duration,
     };
     if (elapsed >= duration && !reduced) return;
+    if (effect.kind === "defuse" && effect.actor) {
+      const table = this.layout.table,
+        compact = table?.h < 260,
+        w = Math.min(this.w - 54, 304),
+        h = compact ? 128 : 144,
+        x = (this.w - w) / 2,
+        y = table ? table.y + Math.max(0, (table.h - h) / 2) : this.top + 82,
+        art = compact ? 96 : 112,
+        tx = x + art + 28,
+        tw = w - art - 44,
+        cx = tx + tw / 2,
+        rowY = y + (compact ? 18 : 22);
+      const c = this.ctx;
+      c.save();
+      c.globalAlpha = alpha;
+      this.box(x, y, w, h, C.white, C.line, 24);
+      this.cardArt(effect.card, x + 16, y + 16, art, art);
+      this.avatar(effect.actor, cx - 16, rowY, 32);
+      this.text(
+        effect.actor.name,
+        cx,
+        rowY + 44,
+        compact ? 16 : 18,
+        C.ink,
+        "center",
+        700,
+        tw,
+      );
+      this.text("拆弹成功", cx, rowY + 66, 15, C.blue, "center", 600, tw);
+      this.text(
+        "正在秘密放回炸弹猫",
+        cx,
+        rowY + 86,
+        11,
+        C.muted,
+        "center",
+        400,
+        tw,
+      );
+      c.restore();
+      return;
+    }
     const w = Math.min(this.w - 54, 304),
       h = effect.card ? 282 : 128,
       x = (this.w - w) / 2,

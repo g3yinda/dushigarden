@@ -142,3 +142,18 @@ test("旧快照进入拆弹也显示抽弹玩家，与新公开事件不重复",
   delete after.game.logs;
   assert.notEqual(U.motions(before, after)[0].explosion, true, "首次抽未翻面内爆猫不播放炸弹猫爆炸");
 });
+
+test("拆弹后秘密放回展示操作者，不把私密位置带入公开动效", () => {
+  const before = room(3, 0), after = structuredClone(before);
+  before.game.current = after.game.current = "2";
+  before.game.phase = "defuse";
+  after.game.phase = "insert";
+  after.game.bomb = { type: "bomb" };
+  after.game.privateLog = [{ text: "放回牌顶第 7 张" }];
+  const effect = U.motions(before, after)[0];
+  assert.equal(effect.kind, "defuse");
+  assert.equal(effect.actor?.id, "2");
+  assert.equal(effect.relationship, "猫2");
+  assert.match(effect.actionText, /正在秘密放回炸弹猫/);
+  assert.doesNotMatch(JSON.stringify(effect), /第 7 张|privateLog|position/);
+});

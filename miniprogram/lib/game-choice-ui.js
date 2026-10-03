@@ -34,7 +34,7 @@ function renderChoice(ui, mode) {
       ? v.selection.needsTarget
         ? 440
         : 300
-      : { future: 350, alterFuture: 410, defuse: 280, insert: 360 }[phase];
+      : { future: 350, alterFuture: 410, defuse: 280, insert: 328 }[phase];
   const h = Math.min(preferred, ui.h - ui.top - ui.bottom - 8),
     w = ui.w - 32;
   const x = 16,
@@ -65,7 +65,7 @@ function renderChoice(ui, mode) {
           alterFuture: "秘密调整未来",
           defuse: "用拆弹保住自己",
           insert:
-            g.bomb?.type === "imploding" ? "翻面内爆猫 · 放回" : "秘密放回炸弹",
+            g.bomb?.type === "imploding" ? "翻面内爆猫 · 放回" : "拆弹成功",
         }[phase];
   ui.text(title, px, y + 28, 18, INK, "left", 600, pw - 60);
   ui.button(
@@ -194,21 +194,51 @@ function renderChoice(ui, mode) {
   }
   if (phase === "insert") {
     const stepY = buttonY - 112,
-      artH = Math.min(90, stepY - cy - 12),
-      artW = Math.min(80, artH);
-    ui.cardArt(U.card(g.bomb || { type: "bomb" }), px, cy, artW, artH);
-    const tx = px + artW + 14,
-      tw = pw - artW - 14;
-    ui.paragraph(
-      g.bomb?.type === "imploding"
-        ? "翻面放回；再抽到立即出局，不能拆弹。位置只有你知道。"
-        : "选择放回的位置，只有你知道。其他牌的顺序不变。",
-      tx,
-      cy + 5,
+      bodyH = stepY - cy,
+      artH = Math.min(64, bodyH - 16),
+      groupW = Math.min(pw, 240),
+      groupX = x + (w - groupW) / 2,
+      tx = groupX + artH + 12,
+      tw = groupW - artH - 12,
+      middle = cy + bodyH / 2,
+      actor = v.players.find((p) => p.id === g.current),
+      imploding = g.bomb?.type === "imploding";
+    ui.cardArt(
+      U.card(g.bomb || { type: "bomb" }),
+      groupX,
+      middle - artH / 2,
+      artH,
+      artH,
+    );
+    ui.text(
+      actor?.name || "你",
+      tx + tw / 2,
+      middle - 20,
+      14,
+      INK,
+      "center",
+      600,
       tw,
-      11,
+    );
+    ui.text(
+      imploding ? "秘密放回内爆猫" : "秘密放回炸弹猫",
+      tx + tw / 2,
+      middle,
+      12,
+      BLUE,
+      "center",
+      600,
+      tw,
+    );
+    ui.text(
+      imploding ? "仅你知道位置 · 再抽即出局" : "放回位置仅你可见",
+      tx + tw / 2,
+      middle + 20,
+      10,
       MUTED,
-      16,
+      "center",
+      400,
+      tw,
     );
     const index = Math.max(
       0,

@@ -391,6 +391,7 @@
     const quantity = event.cards.length > 1 ? ` ×${event.cards.length} 张` : "";
     const actionText = event.kind === "bomb" ? "抽到了炸弹猫！" : event.kind === "implode"
       ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
+      : event.kind === "defuse" ? "拆弹成功 · 正在秘密放回炸弹猫"
       : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
       : `打出「${labels}」${quantity}`;
     return { actor, target, relationship: `${actor?.name || "玩家"}${target ? " 向 " + target.name : ""}`, actionText };
@@ -413,6 +414,7 @@
       if (b.phase === "insert")
         return {
           kind: "defuse",
+          ...actionPresentation(next, { kind: "defuse", actor: b.current, cards: [{ type: "defuse" }] }),
           title: "拆弹成功 · 秘密放回",
           card: card({ type: "defuse" }),
         };

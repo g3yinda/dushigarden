@@ -752,12 +752,14 @@ test("short-screen deck labels clear the player's avatar and the turn label stay
   const labels = [];
   const text = x.ui.text.bind(x.ui);
   x.ui.text = (...args) => { labels.push(args); return text(...args); };
-  for (let n = 2; n <= 6; n++) {
+  for (let n = 2; n <= 6; n++) for (const warning of [null, "deckTop", "deckBottom"]) {
     labels.length = 0;
-    x.accept(room(n));
+    const r = room(n);
+    if (warning) r.game[warning] = { type: "imploding", faceUp: true };
+    x.accept(r);
     const me = x.ui.layout.seats.find(s => s.isMe);
-    for (const label of labels.filter(a => /^牌堆 |^弃牌堆$/.test(a[0])))
-      assert(label[2] <= me.y - 3, `deck label ${label[2]} clears avatar ${me.y} for ${n} seats`);
+    for (const label of labels.filter(a => /^(剩余 \d+ 张|\d+ 张|弃牌堆|牌[顶底]有内爆猫)$/.test(a[0])))
+      assert(label[2] + label[3] / 2 <= me.y - 3, `deck label ${label[2]} clears avatar ${me.y} for ${n} seats`);
     const turn = labels.find(a => a[0].includes("回合"));
     assert(turn[2] >= me.y && turn[2] <= me.y + me.h, "turn information shares the player's label");
   }
@@ -782,6 +784,9 @@ test("fixed hand still exposes card details and settings exposes preserved match
 test("being asked for a card only highlights the fixed hand, without covering the table", () => {
   for (const [w,h] of [[320,568],[390,844],[430,932]]) {
     const x=harness(w,h); x.accept(room());
+    const labels = [], boxes = [], text = x.ui.text.bind(x.ui), box = x.ui.box.bind(x.ui);
+    x.ui.text = (...args) => { labels.push(args); return text(...args); };
+    x.ui.box = (...args) => { boxes.push(args); return box(...args); };
     const handY=x.ui.layout.hand.y;
     const r=room(6,"favor");r.game.pending.actor="p1";
     x.accept(r,["c0"]);
@@ -789,6 +794,11 @@ test("being asked for a card only highlights the fixed hand, without covering th
     assert.equal(x.ui.layout.privatePanel, null);
     assert.equal(x.ui.layout.hand.y,handY);
     assert.equal(x.ui.layout.hand.giving,true);
+    const hint = labels.find(a => a[0].includes("索要 1 张")), frame = boxes.find(a => a[5] === "#0071e3" && a[6] === 18);
+    assert.equal(hint[1], w / 2);
+    assert.equal(hint[5], "center");
+    assert(hint[2] + hint[3] / 2 <= frame[1] + frame[3] - 4, "hint has bottom padding inside the hand frame");
+    assert(hint[7] <= frame[2] - 24, "hint has horizontal padding inside the hand frame");
     assert(x.find("card","c0"));
     assert(x.find("give") && !x.find("give").disabled);
     x.tap(x.find("give"));
