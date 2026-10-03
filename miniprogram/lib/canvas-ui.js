@@ -1,5 +1,6 @@
 const U = require("./controller");
 const Choices = require("./game-choice-ui");
+const { renderBombFX } = require("./bomb-fx");
 const C = {
   bg: "#f5f5f7",
   white: "#ffffff",
@@ -483,6 +484,7 @@ class CanvasUI {
       regions: [],
       seats: [],
       modal: modalKey,
+      explosion: null,
       scroll: { max: 0, offset: this.pageScroll },
     };
     if (!d.room) this.home();
@@ -505,6 +507,13 @@ class CanvasUI {
       }
     }
     this.drawPressed();
+    if (effect?.explosion && !d.settings?.reduced && this.layout.motion) {
+      this.layout.explosion = renderBombFX(
+        this,
+        this.layout.motion.elapsed,
+        this.layout.modalRect || this.layout.motion.panel,
+      );
+    }
     return this.layout;
   }
   home() {
@@ -1968,26 +1977,23 @@ class CanvasUI {
     const c = this.ctx;
     c.save();
     c.globalAlpha = alpha;
-    if (effect.explosion && !reduced && elapsed < 900) {
-      const t = elapsed / 900,
-        cx = this.w / 2,
-        cy = y + h * 0.55;
-      c.save();
-      c.globalAlpha = (1 - t) * alpha;
-      c.beginPath();
-      c.arc(cx, cy, 36 + t * 110, 0, Math.PI * 2);
-      c.strokeStyle = "#f7a354";
-      c.lineWidth = 10 * (1 - t) + 1;
-      c.stroke();
-      for (let i = 0; i < 8; i++) {
-        const angle = (i * Math.PI) / 4;
-        const sx = cx + Math.cos(angle) * (45 + t * 135),
-          sy = cy + Math.sin(angle) * (45 + t * 135);
-        this.box(sx, sy, 8, 12, i % 2 ? "#ef737a" : "#f7c56b", null, 3);
-      }
-      c.restore();
+    this.layout.motion.panel = { x, y, w, h };
+    if (effect.explosion && !reduced && elapsed < 480) {
+      const shake = (1 - elapsed / 480) * 4;
+      c.translate(
+        Math.sin(elapsed * 0.045) * shake,
+        Math.cos(elapsed * 0.058) * shake * 0.5,
+      );
     }
-    this.box(x, y, w, h, "rgba(255,255,255,.97)", C.line, 24);
+    this.box(
+      x,
+      y,
+      w,
+      h,
+      effect.explosion ? "#fff8f4" : "rgba(255,255,255,.97)",
+      effect.explosion ? "#f3a5a0" : C.line,
+      24,
+    );
     let cy = y + 14;
     if (effect.actor) {
       const hasTarget = !!effect.target;

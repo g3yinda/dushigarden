@@ -444,8 +444,42 @@ test("motion renders cached art, entrance exit and explosion; reduced mode needs
   x.ui.render(5950);
   assert.equal(x.ui.needsFrame(), false);
   assert.equal(x.ui.layout.motion.opacity, 1);
+  assert.equal(x.ui.layout.explosion, null, "reduced motion has no full-screen particles");
   x.ui.destroy();
   assert.equal(x.ui.needsFrame(), false);
+});
+
+test("bomb animation spans the complete viewport and its shockwave reaches the farthest corner", () => {
+  for (const [w, h] of [[320,568], [390,844], [430,932]]) {
+    const x = harness(w,h); x.accept(room());
+    const washes = [];
+    x.ui.ctx.fillRect = (...rect) => { if (x.ui.ctx.fillStyle === "#ff7768") washes.push(rect); };
+    x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸弹猫！", card: U.card({type:"bomb"}) }];
+    x.ui.render(1000); x.ui.render(1500);
+    const fx = x.ui.layout.explosion;
+    assert(fx?.active, "explosion is visible throughout its richer sequence");
+    assert.deepEqual(fx.viewport, { x: 0, y: 0, w, h });
+    assert(washes.some(rect => rect[0] === 0 && rect[1] === 0 && rect[2] === w && rect[3] === h), "the effect paints across the full canvas rather than only the table");
+    x.ui.render(2800);
+    assert(x.ui.layout.explosion.outerRadius >= Math.hypot(w / 2, Math.max(x.ui.layout.explosion.origin.y, h - x.ui.layout.explosion.origin.y)), "shockwave expands beyond every screen corner");
+    x.ui.render(3900);
+    assert.equal(x.ui.layout.explosion, null, "full-screen effect clears while the five-second notice remains");
+    assert.equal(x.ui.layout.motion.duration, 5000);
+  }
+});
+
+test("full-screen explosion preserves the private defuse dialog and its live touch controls", () => {
+  const x = harness(320,568), r = room(6,"defuse"); x.accept(r);
+  const before = {...x.find("defuse")};
+  x.page.data.motionItems = [{ renderId: 1, kind: "bomb", explosion: true, actor: x.page.data.v.players[0], title: "抽到了炸弹猫！", card: U.card({type:"bomb"}) }];
+  x.ui.render(1000); x.ui.render(1400);
+  assert.deepEqual(x.ui.layout.explosion?.protectedRect, x.ui.layout.modalRect, "foreground effects leave the complete choice dialog clear");
+  assert.deepEqual(x.find("defuse"), before);
+  x.tap(x.find("defuse"));
+  assert.equal(x.calls.at(-1).action, "defuse");
+  x.page.data.motionItems = [{ renderId: 2, kind:"bomb", title:"首次抽到内爆猫 · 翻面插回", card:U.card({type:"imploding"}) }];
+  x.ui.render(1600);
+  assert.equal(x.ui.layout.explosion, null, "unflipped imploding card does not falsely trigger the bomb blast");
 });
 test("vertical gesture cannot scroll a private dialog or trigger the pressed action", () => {
   const x = harness(320, 568);
