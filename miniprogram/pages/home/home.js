@@ -76,8 +76,8 @@ const definition = {
   onShareAppMessage() {
     return {
       title: this.data.room
-        ? "来玩炸弹猫，房间号 " + this.data.room.code
-        : "朋友局 · 和朋友轻松开一局",
+        ? "来玩炸毛猫咪，房间号 " + this.data.room.code
+        : "朋友局 · 炸毛猫咪",
       path:
         "/pages/home/home" +
         (this.data.room ? "?room=" + this.data.room.code : ""),

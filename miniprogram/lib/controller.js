@@ -3,8 +3,16 @@
   if (typeof module === "object") module.exports = api;
   else root.BoomUI = api;
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const gameName = "炸毛猫咪";
+  // Translate system messages from existing rooms without mutating their events.
+  function displayLogs(logs = []) {
+    return logs.map((entry) => ({
+      ...entry,
+      text: String(entry.text || "").replace(/炸弹猫/g, gameName),
+    }));
+  }
   const names = {
-    bomb: "炸弹猫",
+    bomb: gameName,
     defuse: "拆弹",
     attack: "攻击 ×2",
     skip: "跳过",
@@ -193,6 +201,8 @@
     const options = g?.options || r.options || {};
     const omitted = [options.includeImploding === false ? "无内爆猫" : "", options.includeReverse === false ? "无反转" : ""].filter(Boolean);
     const base = {
+      logs: displayLogs(g?.logs),
+      privateLog: displayLogs(g?.privateLog),
       players: ps,
       rulesLabel: g?.rulesVersion === "ek-original-2025-friends-6p-v1"
         ? "六人朋友规则（旧局）"
@@ -389,9 +399,9 @@
     const actor = publicPlayer(event.actor), target = publicPlayer(event.target);
     const labels = [...new Set(event.cards.map(c => names[c.type] || c.type))].join(" + ");
     const quantity = event.cards.length > 1 ? ` ×${event.cards.length} 张` : "";
-    const actionText = event.kind === "bomb" ? "抽到了炸弹猫！" : event.kind === "implode"
+    const actionText = event.kind === "bomb" ? "抽到了炸毛猫咪！" : event.kind === "implode"
       ? event.cards[0].faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"
-      : event.kind === "defuse" ? "拆弹成功 · 正在秘密放回炸弹猫"
+      : event.kind === "defuse" ? "拆弹成功 · 正在秘密放回炸毛猫咪"
       : event.kind === "draw" ? `获得「${labels}」`
       : event.kind === "nope" ? `打出「${event.nopeCount % 2 ? "否定" : "反否定"}」· ${event.nopeCount % 2 ? "动作取消" : "动作恢复"}`
       : `打出「${labels}」${quantity}`;
@@ -407,7 +417,7 @@
           kind: "bomb",
           explosion: true,
           ...actionPresentation(next, { kind: "bomb", actor: b.current, cards: [{ type: "bomb" }] }),
-          title: "抽到了炸弹猫！",
+          title: "抽到了炸毛猫咪！",
           card: card({ type: "bomb" }),
         };
       if (b.phase === "insert" && b.bomb?.type === "imploding")
@@ -468,7 +478,7 @@
           count: e.cards.length,
           card: card(e.kind === "implode" ? { ...c, faceUp: true } : c),
           title:
-            e.kind === "bomb" ? `${actor}抽到了炸弹猫！` : e.kind === "implode"
+            e.kind === "bomb" ? `${actor}抽到了炸毛猫咪！` : e.kind === "implode"
               ? `${actor}${c.faceUp ? "抽到翻面内爆猫 · 立即出局" : "首次抽到内爆猫 · 翻面插回"}`
               : e.kind === "nope"
               ? `${actor}${e.nopeCount % 2 ? "否定 · 动作取消" : "反否定 · 动作恢复"}`
@@ -545,6 +555,7 @@
     return patch;
   }
   return {
+    gameName,
     dataPatch,
     names,
     card,

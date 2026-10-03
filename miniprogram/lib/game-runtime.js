@@ -59,7 +59,7 @@ function createGameRuntime({ wx, definition, Renderer, schedule, cancel }) {
       fail:() => { inputField = null; page.notice("键盘暂时无法打开，请重试"); }});
   }
   function share() {
-    return {title:page.data.room ? "来玩炸弹猫，房间号 " + page.data.room.code : "朋友局 · 炸弹猫",
+    return {title:page.data.room ? "来玩炸毛猫咪，房间号 " + page.data.room.code : "朋友局 · 炸毛猫咪",
       query:page.data.room ? "room=" + encodeURIComponent(page.data.room.code) : "",
       // Never use the default game screenshot: it could expose private cards.
       imageUrl:"assets/share.png"};

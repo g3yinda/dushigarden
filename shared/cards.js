@@ -1,7 +1,7 @@
 "use strict";
 const CARDS = {
   bomb: {
-    name: "炸弹猫",
+    name: "炸毛猫咪",
     short: "抽到就爆炸",
     description: "抽到立即处理。有拆弹可以保命；没有拆弹则出局。不可否定。",
     color: "#FFE3DE",

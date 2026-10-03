@@ -547,6 +547,11 @@ class CanvasUI {
         ah,
         24,
       );
+      // The original atlas contains a baked-in title; keep the art and render
+      // the current name as responsive text, just like the player count.
+      this.box(ax + aw * 0.032, ay + ah * 0.073, aw * 0.52, ah * 0.14, "#fff0cf", null, 8);
+      this.text(U.gameName, ax + aw * 0.292, ay + ah * 0.143,
+        aw * 0.10, "#3b2416", "center", 800, aw * 0.49);
     } else {
       this.text(
         "🐱",
@@ -556,7 +561,7 @@ class CanvasUI {
         C.ink,
         "center",
       );
-      this.text("炸弹猫", this.w / 2, ay + ah * 0.75, 24, C.ink, "center", 600);
+      this.text("炸毛猫咪", this.w / 2, ay + ah * 0.75, 24, C.ink, "center", 600);
     }
     this.box(
       ax + aw * 0.045,
@@ -763,7 +768,7 @@ class CanvasUI {
     const d = this.page.data,
       v = d.v || {},
       g = d.room.game;
-    this.header("炸弹猫", "房间号 " + d.room.code);
+    this.header("炸毛猫咪", "房间号 " + d.room.code);
     const finished = g.phase === "finished";
     if (!finished) return this.activeGame();
     const dockH = finished ? 0 : 118;
@@ -832,8 +837,8 @@ class CanvasUI {
         y += 62;
       }
       const logs = [
-        ...(g.privateLog || []).map((l) => "仅你可见 · " + l.text),
-        ...(g.logs || []).map((l) => l.text),
+        ...(d.v.privateLog || []).map((l) => "仅你可见 · " + l.text),
+        ...(d.v.logs || []).map((l) => l.text),
       ];
       if (logs.length) {
         this.text("对局动态", 20, y + 14, 12, C.muted);
@@ -1437,8 +1442,8 @@ class CanvasUI {
       if (m === "history") {
         const g = d.room?.game;
         const logs = [
-          ...(g?.privateLog || []).map((l) => "仅你可见 · " + l.text),
-          ...(g?.logs || []).map((l) => l.text),
+          ...(d.v.privateLog || []).map((l) => "仅你可见 · " + l.text),
+          ...(d.v.logs || []).map((l) => l.text),
         ];
         if (!logs.length) p("还没有对局动态");
         logs.forEach((text) => p(text, 13));
@@ -1772,7 +1777,7 @@ class CanvasUI {
         this.share
           ? this.share()
           : {
-              title: "来玩炸弹猫，房间号 " + d.room.code,
+              title: "来玩炸毛猫咪，房间号 " + d.room.code,
               query: "room=" + d.room.code,
               imageUrl: "assets/share.png",
             },
@@ -1958,7 +1963,7 @@ class CanvasUI {
         tw,
       );
       this.text(
-        effect.kind === "draw" ? effect.card.name : "正在秘密放回炸弹猫",
+        effect.kind === "draw" ? effect.card.name : "正在秘密放回炸毛猫咪",
         cx,
         rowY + 86,
         effect.kind === "draw" ? 13 : 11,
