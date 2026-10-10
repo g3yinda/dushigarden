@@ -5,6 +5,9 @@ const path = require("node:path");
 const { RoomService, ServiceError } = require("./rooms");
 const { BotRunner } = require("./bots");
 const { canUseLocalDebug, canUsePreviewDebug } = require("./debug-access");
+const { exchangeWechatCode } = require("./wechat-login");
+const { createNicknameChecker } = require("./content-security");
+const { normalizeNickname, approvedNickname, reviewRecord, identityKey, migrateNicknames } = require("./nickname-policy");
 const cards = require("../shared/cards");
 function send(res, status, data) {
   if (res.writableEnded || res.destroyed) return;
@@ -33,34 +36,11 @@ async function body(req) {
     throw new ServiceError("请求格式不正确", "BAD_REQUEST", 400);
   }
 }
-async function exchangeWechatCode(code) {
-  const url = new URL("https://api.weixin.qq.com/sns/jscode2session");
-  url.search = new URLSearchParams({
-    appid: process.env.WX_APP_ID,
-    secret: process.env.WX_APP_SECRET,
-    js_code: code,
-    grant_type: "authorization_code",
-  }).toString();
-  let data;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) throw Error();
-    data = await res.json();
-  } catch {
-    throw new ServiceError(
-      "微信登录暂时不可用，请稍后再试",
-      "LOGIN_UNAVAILABLE",
-      503,
-    );
-  }
-  if (!data.openid || data.errcode)
-    throw new ServiceError("微信登录已过期，请重试", "LOGIN_FAILED", 401);
-  return data.openid;
-}
 function createServer({
   service = new RoomService(),
   mode = "local",
   exchangeCode = exchangeWechatCode,
+  checkNickname = createNicknameChecker(),
   pollMs = 20000,
   lanToken = "",
   previewToken = "",
@@ -70,6 +50,7 @@ function createServer({
   if (lanToken && (mode !== "local" || !/^[a-f0-9]{64}$/.test(lanToken)))
     throw new Error("真机调试访问码只能用于本地开发模式");
   service.allowBots = mode === "local" || mode === "preview";
+  if (mode === "wechat") migrateNicknames(service);
   const bots = service.allowBots ? new BotRunner(service) : null;
   const limits = new Map();
   const waiting = new Map();
@@ -125,7 +106,14 @@ function createServer({
             identity = await exchangeCode(b.code);
           } else if (!debugAccess)
             throw new ServiceError("开发身份仅允许本机访问", "FORBIDDEN", 403);
-          return send(res, 200, service.session(b, identity));
+          let review;
+          if (mode === "wechat") {
+            const existing=Object.values(service.players).find(p=>p.identity===identityKey(identity));
+            b.name=normalizeNickname(b.name,existing?.name || "小猫");
+            review=approvedNickname(existing,b.name)?existing.nicknameReview
+              :reviewRecord(b.name,await checkNickname(b.name,identity));
+          }
+          return send(res, 200, service.session(b, identity, review));
         }
         const match = /^Bearer ([A-Za-z0-9_-]+)$/.exec(
           req.headers.authorization || "",
@@ -133,8 +121,23 @@ function createServer({
         const p = service.authenticate(match?.[1]);
         limit("player:" + p.id, 240);
         service.tick();
-        if (route === "/api/profile" && req.method === "POST")
-          return send(res, 200, service.profile(p.id, await body(req)));
+        if (route === "/api/profile" && req.method === "POST") {
+          const b=await body(req);
+          let review;
+          if (mode === "wechat") {
+            limit("nickname:"+p.id,10);
+            b.name=normalizeNickname(b.name,p.name);
+            if (approvedNickname(p,b.name)) review=p.nicknameReview;
+            else {
+              if(typeof b.code!=="string" || !b.code || b.code.length>256)
+                throw new ServiceError("请更新游戏后重试昵称审核","NICKNAME_LOGIN_REQUIRED",400);
+              const identity=await exchangeCode(b.code);
+              if(identityKey(identity)!==p.identity) throw new ServiceError("微信身份不一致，请重新进入游戏","FORBIDDEN",403);
+              review=reviewRecord(b.name,await checkNickname(b.name,identity));
+            }
+          }
+          return send(res, 200, service.profile(p.id, b, review));
+        }
         if (route === "/api/rooms/current" && req.method === "GET") {
           const r = service.current(p.id);
           if (r) service.touch(p.id, service.member(p.id, r.code));

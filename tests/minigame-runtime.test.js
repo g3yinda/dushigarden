@@ -17,7 +17,7 @@ function harness() {
   };
   for (const name of ["Show","Hide","WindowResize","TouchStart","TouchMove","TouchEnd","TouchCancel","KeyboardInput","KeyboardConfirm","KeyboardComplete","ShareAppMessage"])
     { wx["on"+name] = f => events[name]=f; wx["off"+name] = f => { if(events[name]===f) delete events[name]; }; }
-  const context = {module:{exports:{}},require:n=>n.includes("controller")?U:{localMode:true},wx,
+  const context = {module:{exports:{}},require:n=>n.includes("controller")?U:n.includes("api-transport")?require("../miniprogram/lib/api-transport"):{localMode:true},wx,
     setTimeout,clearTimeout,setInterval:()=>++sequence,clearInterval() {}};
   assert.doesNotThrow(()=>vm.runInNewContext(fs.readFileSync(require.resolve("../miniprogram/pages/home/home.js"),"utf8"),context),"业务层在无Page环境不应引用小程序全局Page");
   const definition = context.module.exports;

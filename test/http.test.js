@@ -65,6 +65,7 @@ test("HTTP 身份、建房、准备、开始与权限闭环", async (t) => {
 test("生产身份不接受客户端伪造 playerId/openid", async (t) => {
   const req = await fixture(t, {
     mode: "wechat",
+    checkNickname: async () => ({traceId:"fixture-pass"}),
     exchangeCode: async (code) => {
       if (code === "valid") return "real-open-id";
       throw Error("invalid");
@@ -177,6 +178,7 @@ test("本地房主可添加 Bot，旧版本与非房主不能添加，命令重�
 test("微信生产模式即使身份有效也不能使用 Bot 接口", async (t) => {
   const req = await fixture(t, {
     mode: "wechat",
+    checkNickname: async () => ({traceId:"fixture-pass"}),
     exchangeCode: async () => "valid-owner",
   });
   const a = (await req("/api/session", { name: "真人", code: "valid" })).data;

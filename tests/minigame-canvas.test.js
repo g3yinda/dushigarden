@@ -85,7 +85,7 @@ function harness(w = 390, h = 844) {
       "utf8",
     ),
     {
-      require: (n) => (n.includes("controller") ? U : { localMode: true }),
+      require: (n) => (n.includes("controller") ? U : n.includes("api-transport") ? require("../miniprogram/lib/api-transport") : { localMode: true }),
       Page: (p) => (definition = p),
       wx,
       setTimeout: () => 0,

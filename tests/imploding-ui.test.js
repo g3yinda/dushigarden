@@ -12,7 +12,7 @@ function room(types = [], phase = 'action') {
 function native() {
   let page;
   vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/home/home.js'),'utf8'), {
-    require:name=>name.includes('controller')?U:{localMode:true},Page:p=>page=p,wx:{},setTimeout:()=>1,clearTimeout(){},
+    require:name=>name.includes('controller')?U:name.includes('api-transport')?require('../miniprogram/lib/api-transport'):{localMode:true},Page:p=>page=p,wx:{},setTimeout:()=>1,clearTimeout(){},
   });
   page.setData=update=>require("./native-data").applyData(page.data,update); page.notice=()=>{};
   return {state:page.data,accept:r=>page.accept(r),click:(action,data={})=>page.action({currentTarget:{dataset:{action,...data}}}),page};

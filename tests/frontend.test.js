@@ -202,6 +202,7 @@ function nativeHarness(schedule = () => 1, configOverrides = {}, wxApi = {}) {
               createMotionPlayer: (options) =>
                 ui.createMotionPlayer({ ...options, schedule }),
             }
+          : name.includes("api-transport") ? require("../miniprogram/lib/api-transport")
           : { localMode: true, ...configOverrides },
       Page: (definition) => {
         page = definition;
@@ -732,6 +733,103 @@ test("native 真机请求电脑LAN地址并携带本地调试访问码", async (
   await page.request("/rooms", { noTurnTimer: true });
   assert.equal(captured.url, "http://192.168.0.107:8787/api/rooms");
   assert.equal(captured.header["X-Boomcat-Debug"], "debug-test");
+});
+
+test("native 微信域名拦截、证书失败和超时有独立原因，不误报服务器未启动", async () => {
+  for (const [errMsg, code, message] of [
+    ["request:fail url not in domain list", "DOMAIN_NOT_ALLOWED", /微信.*拦截/],
+    ["request:fail ssl hand shake error", "TLS_FAILED", /安全连接/],
+    ["request:fail cert authority invalid", "TLS_FAILED", /安全连接/],
+    ["request:fail timeout", "TIMEOUT", /超时/],
+    ["request:fail abort", "ABORTED", /请求已暂停/],
+    ["request:fail ERR_CONNECTION_REFUSED", "NETWORK_FAILED", /检查网络/],
+  ]) {
+    const page = nativeHarness(() => 1, { apiBase: "https://api.cats-game.cn" }, {
+      request(options) { options.fail({ errMsg }); return {}; },
+    });
+    await assert.rejects(page.request("/session", {}), error => {
+      assert.equal(error.code, code);
+      assert.match(error.message, message);
+      assert.doesNotMatch(error.message, /服务是否启动/);
+      return true;
+    });
+  }
+});
+
+test("native 网络失败缺少errMsg也会正常拒绝，原始错误中的凭据不进入提示", async () => {
+  for (const failure of [undefined, {}, { errMsg: "request:fail https://user:private-key@host.invalid/?token=secret" }]) {
+    const page = nativeHarness(() => 1, {}, {
+      request(options) { options.fail(failure); return {}; },
+    });
+    await assert.rejects(page.request("/session", {}), error => {
+      assert.equal(error.code, "NETWORK_FAILED");
+      assert.doesNotMatch(error.message, /private-key|secret|host.invalid/);
+      return true;
+    });
+  }
+});
+
+test("native 切换云托管清除旧后端令牌，保留昵称头像；同一后端会话仍恢复", () => {
+  const options = { transport: "cloudrun", cloudRunEnv: "prod-d2gqiy08z19bd1427", cloudService: "boomcat", localMode: false };
+  const storage = new Map([["boom.token", "old-preview-session"], ["boom.name", "小白"], ["boom.avatar", 2], ["boom.endpoint", "http:https://preview.invalid"]]);
+  const page = nativeHarness(() => 1, options, {
+    getStorageSync: key => storage.get(key), setStorageSync: (key, value) => storage.set(key, value),
+    removeStorageSync: key => storage.delete(key),
+  });
+  page.restore = () => {};
+  page.onLoad({});
+  assert.equal(page.token, null); assert.equal(storage.has("boom.token"), false);
+  assert.equal(page.data.name, "小白"); assert.equal(page.data.avatar, 2);
+  assert.equal(storage.get("boom.endpoint"), "cloudrun:prod-d2gqiy08z19bd1427:boomcat");
+  storage.set("boom.token", "production-session"); page.onLoad({});
+  assert.equal(page.token, "production-session");
+});
+
+test("native 云托管使用真实wx.login流程，业务401及云授权失败能准确传递", async () => {
+  const config = { transport: "cloudrun", cloudEnv: "cloudbase-d7gs58am20088d298",
+    cloudRunEnv: "prod-d2gqiy08z19bd1427", cloudService: "boomcat", localMode: false };
+  const calls = [], stored = new Map(); let deny = false;
+  const page = nativeHarness(() => 1, config, {
+    login(options) { options.success({ code: "synthetic-wechat-code" }); },
+    setStorageSync: (key, value) => stored.set(key, value),
+    cloud: { init() {}, async callContainer(options) {
+      calls.push(options);
+      if (deny) throw { errMsg: "Your server is Forbidden For CallContainer" };
+      return options.path === "/api/session" ? { statusCode: 200, data: { token: "new-session" } }
+        : { statusCode: 401, data: { message: "登录已过期" } };
+    } },
+  });
+  page.token = null; page.data.name = "小白";
+  await page.session();
+  assert.equal(calls[0].data.code, "synthetic-wechat-code");
+  assert.equal(page.token, "new-session");
+  assert.equal(stored.get("boom.token"), "new-session");
+  await assert.rejects(page.request("/profile", {}), error => error.status === 401 && error.message === "登录已过期");
+  deny = true;
+  await assert.rejects(page.request("/rooms", {}), error => error.code === "CLOUD_FORBIDDEN" && /未授权/.test(error.message));
+});
+
+test("已有会话修改昵称也携带新鲜微信code，审核拒绝时不创建房间", async () => {
+  const calls=[],stored=new Map();let logins=0;
+  const page=nativeHarness(()=>1,{localMode:false},{
+    login(o){o.success({code:`fresh-${++logins}`});},
+    setStorageSync:(k,v)=>stored.set(k,v),
+  });
+  page.token="existing";page.data.name="新昵称";page.data.room=null;
+  page.request=async(path,body)=>{calls.push({path,body});throw Object.assign(Error("昵称未通过安全检查，请换一个昵称"),{status:422});};
+  await assert.rejects(page.session(),/未通过安全检查/);
+  assert.equal(calls[0].path,"/profile");assert.equal(calls[0].body.code,"fresh-1");
+  assert.equal(calls[0].body.name,"新昵称");assert.equal(stored.has("boom.name"),false);
+  await page.action({currentTarget:{dataset:{action:"create-submit"}}});
+  assert.equal(logins,2);assert(!calls.some(c=>c.path==="/rooms"));
+  assert(page.notices.some(n=>n.includes("昵称未通过")));
+});
+
+test("生产昵称审核请求给身份交换和审核留下时间，普通指令超时保持不变",async()=>{
+  const timeouts=[];
+  const page=nativeHarness(()=>1,{}, {request:o=>{timeouts.push(o.timeout);o.success({statusCode:200,data:{}});return {abort(){}};}});
+  await page.request("/profile",{});await page.request("/session",{});await page.request("/rooms",{});
+  assert.deepEqual(timeouts,[25000,25000,12000]);
 });
 
 function nopeRoom(layer = 0, hand = [{ id: "n1", type: "nope" }, { id: "n2", type: "nope" }]) {

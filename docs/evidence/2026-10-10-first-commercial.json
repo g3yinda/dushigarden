@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-10",
+  "timezone": "Asia/Shanghai",
+  "releaseLabel": "炸弹猫的第一版商用版本",
+  "targetBranch": "main",
+  "platformStatus": {
+    "source": "user confirmation in this conversation",
+    "codeReview": "passed",
+    "designatedRelease": "first commercial release",
+    "consoleIndependentlyInspected": false
+  },
+  "internalPackageVersion": "0.11.3",
+  "tests": {
+    "command": "npm test",
+    "pass": 579,
+    "fail": 0,
+    "cancelled": 0,
+    "logSha256": "a1180784f3f51bbca1002ea6c37507be1c93502091e7409bde28166cef1027f3"
+  },
+  "releaseCheck": {
+    "passed": true,
+    "sourcePackageMiB": 1.88
+  },
+  "sensitiveFiles": "private keys, local environment, runtime snapshots, local config and output excluded by gitignore",
+  "scope": "GitHub main archival only; no additional WeChat publication or cloud deployment"
+}

@@ -1,5 +1,6 @@
 const U = require("../../lib/controller");
 const config = require("../../config");
+const { createApiTransport } = require("../../lib/api-transport");
 const definition = {
   data: {
     room: null,
@@ -43,7 +44,13 @@ const definition = {
     if (Object.keys(patch).length) this.setData(patch);
   },
   onLoad(options) {
-    this.token = wx.getStorageSync("boom.token");
+    const endpoint = config.transport === "cloudrun"
+      ? `cloudrun:${config.cloudRunEnv}:${config.cloudService}` : `http:${config.apiBase || ""}`;
+    if (wx.getStorageSync("boom.endpoint") !== endpoint) {
+      wx.removeStorageSync?.("boom.token");
+      this.token = null;
+      wx.setStorageSync("boom.endpoint", endpoint);
+    } else this.token = wx.getStorageSync("boom.token");
     const info = U.avatarInfo({ avatar: wx.getStorageSync("boom.avatar"), avatarUrl: wx.getStorageSync("boom.avatarUrl") });
     let avatar = info.id;
     this.updateData({
@@ -92,13 +99,38 @@ const definition = {
   onPullDownRefresh() {
     this.refresh().finally(() => wx.stopPullDownRefresh());
   },
+  requestError(failure) {
+    const detail = typeof failure?.errMsg === "string" ? failure.errMsg.toLowerCase() : "";
+    let code = "NETWORK_FAILED", message = "网络连接失败，请检查网络后重试";
+    if (detail.includes("abort")) {
+      code = "ABORTED"; message = "请求已暂停";
+    } else if (/url not in domain list|domain.*(?:not allowed|not configured)|合法域名/.test(detail)) {
+      code = "DOMAIN_NOT_ALLOWED"; message = "连接被微信拦截，请联系开发者";
+    } else if (/ssl|tls|cert|hand\s*shake/.test(detail)) {
+      code = "TLS_FAILED"; message = "安全连接失败，请稍后再试";
+    } else if (/timeout|timed out/.test(detail)) {
+      code = "TIMEOUT"; message = "连接超时，请检查网络后重试";
+    }
+    const cloudMessages = {
+      CLOUD_CONFIG: "游戏连接配置不完整，请联系开发者",
+      CLOUD_UNAVAILABLE: "微信云能力不可用，请更新微信后重试",
+      CLOUD_FORBIDDEN: "云服务访问未授权，请联系开发者",
+      CLOUD_INIT_FAILED: "云连接初始化失败，请稍后再试",
+      CLOUD_SERVICE_UNAVAILABLE: "云服务暂时不可用，请稍后再试",
+    };
+    if (cloudMessages[failure?.code]) { code = failure.code; message = cloudMessages[code]; }
+    const error = Error(message);
+    error.code = code;
+    return error;
+  },
   request(path, body, long = false) {
     return new Promise((resolve, reject) => {
-      const req = wx.request({
-        url: config.apiBase + "/api" + path,
+      this.apiTransport ||= createApiTransport(wx, config);
+      const req = this.apiTransport({
+        path: "/api" + path,
         method: body === undefined ? "GET" : "POST",
         data: body,
-        timeout: long ? 25000 : 12000,
+        timeout: long || ["/session", "/profile"].includes(path) ? 25000 : 12000,
         header: {
           "content-type": "application/json",
           ...(this.token ? { Authorization: "Bearer " + this.token } : {}),
@@ -114,14 +146,7 @@ const definition = {
             reject(e);
           }
         },
-        fail: (e) =>
-          reject(
-            Error(
-              e.errMsg.includes("abort")
-                ? "请求已暂停"
-                : "网络连接失败，请检查服务是否启动",
-            ),
-          ),
+        fail: (e) => reject(this.requestError(e)),
       });
       if (long) this.pollRequest = req;
     });
@@ -145,26 +170,28 @@ const definition = {
     }
   },
   async session() {
+    if (!this.token && !this.data.name.trim()) throw Error("先给自己起个名字吧");
+    // Profile changes also need a fresh identity for server-side msgSecCheck v2.
+    // OpenID and moderation decisions never come from client storage.
+    let code;
+    if (!config.localMode)
+      code = await new Promise((resolve, reject) =>
+        wx.login({
+          success: (r) => r.code ? resolve(r.code) : reject(Error("微信登录失败")),
+          fail: () => reject(Error("微信登录暂时不可用，请稍后再试")),
+        }),
+      );
     if (this.token) {
       await this.request("/profile", {
         name: this.data.name,
         avatar: this.data.avatar,
         avatarUrl: this.data.avatarUrl,
+        code,
       });
       this.saveAvatar();
       wx.setStorageSync("boom.name", this.data.name);
       return;
     }
-    if (!this.data.name.trim()) throw Error("先给自己起个名字吧");
-    let code;
-    if (!config.localMode)
-      code = await new Promise((resolve, reject) =>
-        wx.login({
-          success: (r) =>
-            r.code ? resolve(r.code) : reject(Error("微信登录失败")),
-          fail: reject,
-        }),
-      );
     const s = await this.request("/session", {
       name: this.data.name.trim(),
       avatar: this.data.avatar,

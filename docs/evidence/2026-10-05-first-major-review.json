@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-05",
+  "timezone": "Asia/Shanghai",
+  "scope": "Local engineering handoff review; no live production or platform query",
+  "branch": "codex/minigame-adaptation",
+  "head": "1d2e1e2ad3520c5365a15133bdf8f457cff97a34",
+  "packageVersion": "0.11.3",
+  "workingTreeContainsUncommittedChanges": true,
+  "latestLocalTag": "v0.9.5",
+  "nodeVersion": "v24.15.0",
+  "npmTest": {
+    "tests": 554,
+    "passed": 554,
+    "failed": 0,
+    "durationMs": 20633.454833
+  },
+  "releaseCheck": {
+    "passed": true,
+    "packageSourceApproxMiB": 1.88,
+    "scope": "Source syntax/assets/config, not account certification/cloud durability"
+  },
+  "sourceSha256": {
+    "Dockerfile": "d3803972cf9d37769acc5d62a02ace2cdbf61fb81f9eafd77add1c279df4225c",
+    "server/index.js": "daee7dffd0caab1acd45d13a9fea15697f395072f91c1ca69cf93766d119e5db",
+    "server/rooms.js": "45f7bd3026583e97b28534c2ab255999b2d113c386fd33da5b382247c5742776",
+    "server/engine.js": "4f0290075103fc1c77732f517cd69491ff3ee01c1edb456c16fcbc7c742f1df4",
+    "server/wechat-login.js": "9af76f7978ad5665b1e39d6a5aa044c598291ba0b986bec7b47eddb1d90f11da",
+    "shared/cards.js": "4f1f73febabe0659f6e27b00edaf6e5c38fc91f8c39a54fee4d626d9eac55458",
+    "miniprogram/lib/api-transport.js": "4837f1d79ee72cde6273e7bb9b30be26d776406406edaeb822a01beed78eed05",
+    "miniprogram/lib/canvas-ui.js": "793d8bd15a37a24dac35fd6a24f9a83fa278a8078cd79af4a71e1139a75acb79",
+    "miniprogram/lib/game-runtime.js": "96ef9db70eb04b1645dd0382210f1127f9ea0f6dc0fd82068d3668c225444931",
+    "miniprogram/pages/home/home.js": "2ab252502b58b93b50f6ab6c0b4087699b74c18bd6c95cdd62411b9d96ce3d19",
+    "tools/release-config.js": "02bc3d75b5cdb4d94c218d7861db814f8b2b581f49bc5843971c4073f28c1ac0",
+    "tools/configure-cloudrun.js": "3468da0d3fcbc74636d46bab267eccb586bf5e81bf937a5787d0bd1aec9e680f"
+  },
+  "backendArchive": {
+    "path": "output/deploy/boomcat-cloudrun-tls-fix-2026-10-05.zip",
+    "sha256": "6fd42284a03d51efa05d6493e93b720f8ceab5223d50ec626857d8416befdf29"
+  },
+  "userReportedEvidence": {
+    "phoneExperienceRoomCreation": "Success reported by user; current deployed version/device/network/debug-off not independently recorded",
+    "wechatCertification": "User says in progress"
+  },
+  "notPerformed": [
+    "production deployment",
+    "cloud console configuration query",
+    "real multi-device games",
+    "load test",
+    "privacy/legal compliance review",
+    "Git commit or push",
+    "WeChat upload/audit/publication"
+  ]
+}

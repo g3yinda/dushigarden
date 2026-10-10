@@ -26,7 +26,7 @@ for (const n of [2,3,4,5,6]) test(`小游戏业务实例通过真实HTTP完成${
         .catch(error=>options.fail({errMsg:String(error)}));
       return {abort:()=>control.abort()};
     }};
-  const context={module:{exports:{}},wx,require:path=>path.includes("controller")?U:{localMode:true,apiBase:base},setTimeout,clearTimeout,setInterval,clearInterval};
+  const context={module:{exports:{}},wx,require:path=>path.includes("controller")?U:path.includes("api-transport")?require("../miniprogram/lib/api-transport"):{localMode:true,apiBase:base},setTimeout,clearTimeout,setInterval,clearInterval};
   vm.runInNewContext(fs.readFileSync(require.resolve("../miniprogram/pages/home/home.js"),"utf8"),context);
   context.module.exports.poll=()=>{}; // Explicit commands drive this isolated HTTP fixture.
   class Renderer{render(){}resize(){}needsFrame(){return false;}destroy(){}}

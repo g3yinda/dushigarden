@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-08",
+  "scope": "nickname-content-security",
+  "version": "0.11.3",
+  "gitHead": "1d2e1e2ad3520c5365a15133bdf8f457cff97a34",
+  "gitState": "uncommitted working tree; includes earlier CloudRun fixes",
+  "verification": {
+    "fullTests": {
+      "command": "npm test",
+      "pass": 579,
+      "fail": 0,
+      "cancelled": 0
+    },
+    "releaseCheck": "passed; approximately 1.88 MiB minigame source package",
+    "diffCheck": "passed",
+    "redEvidence": "Before fix, login rejection and identity binding tests returned 200 instead of 422/403; pending checker was never called.",
+    "upstreamWeChat": "synthetic API responses only; no live account credentials used",
+    "testLogSha256": "e4a9698af71b5c837bb2428725d9ded15f81d8c31cf9212c94a2b52428e66d81",
+    "releaseCheckLogSha256": "77b320f292c2acd147fc688d945fed7156ce095052e1be32df89731fbfb55153"
+  },
+  "pending": [
+    "CloudRun API permission and sidecar configuration",
+    "backend build/deployment and full traffic cutover",
+    "mini-game upload/experience selection",
+    "real WeChat msgSecCheck pass/blocked outcomes and phone acceptance",
+    "platform resubmission/review"
+  ],
+  "archive": {
+    "path": "output/deploy/boomcat-nickname-security-2026-10-08.zip",
+    "fileCount": 24,
+    "bytes": 1703642,
+    "sha256": "c1e57b70239dcfaffe5d650d243ee19c11e4bcbc1e02e0c19a9f4c9b0e3b4cde",
+    "integrity": "CRC and byte equality to allowlisted source files passed"
+  },
+  "sha256": {
+    "Dockerfile": "3defe171dd352b84b119aae832f40e8cd551c57afd25022b746f317fa7f80f43",
+    ".dockerignore": "d2a8f38af488a6d5bcdd8fe4e336a75561130c8be435d6d7e012948e67468fd6",
+    "package.json": "4aaed5ff4215de2f64f1bc37f80eefdb860d94b0c61218f0484f2e37d53627d3",
+    "server/bots.js": "495ceae9be717c28caacb78762027871146dcbf9f9ed7bc7a550214cba1e3baf",
+    "server/content-security.js": "cb7b0fd1a0e7805e8f01887d26f82dd3fc727502cbe5468bcd15739133d1e54e",
+    "server/debug-access.js": "c554ff88f58a109ebb7f6f77cdafb1dfdd924c8fc696f1f8d62223f634906522",
+    "server/engine.js": "4f0290075103fc1c77732f517cd69491ff3ee01c1edb456c16fcbc7c742f1df4",
+    "server/index.js": "368f4f78fca965a2a69e306d0362a1a42efee29eefaa1f6c8ef91400db015314",
+    "server/nickname-policy.js": "ec65708037a539c68ba89da6e4a420fae4b53913884f163c6f97043027e88d7a",
+    "server/probe-wechat.js": "df77efdf1b52f9574d10ec66fcad502391de9b8e767ff3238636706bbca5323b",
+    "server/rooms.js": "91c5bae1527a54a68a576c97bce632c3fd9e30a203f99556973df7c570179808",
+    "server/wechat-login.js": "9af76f7978ad5665b1e39d6a5aa044c598291ba0b986bec7b47eddb1d90f11da",
+    "shared/cards.js": "4f1f73febabe0659f6e27b00edaf6e5c38fc91f8c39a54fee4d626d9eac55458",
+    "shared/player-profile.js": "be3c14821e9f621f22a5bfcb18defe2b24672de115c2df145763386c305074c1",
+    "web/app.js": "a40780cc5405b4ef9f884424acfe988b7b82179fb08841e9dfeac8d8f4bc6ef3",
+    "web/cats.jpg": "722d3fc5c7c4efd995a176e0f0620d5ca5cd5d3f5c45d8dfbfde8081aa10312a",
+    "web/controller.js": "4365d91886cbe974ca8d9cbc2d52c71c2a1e386dde05f18349d4ace9e71bb223",
+    "web/core.jpg": "292b12a1b411dca450a6ed2024efe2238c7e350387e70fc2e12198d8f94f5a32",
+    "web/dom-patch.js": "abb974408623c96ff5120b9481f3b49636316a1630ce190bf445685b61601ae7",
+    "web/expansion.jpg": "171c501b4e3b413120b4cc30128b8b26c00986a97e732797dec4f5538218219d",
+    "web/index.html": "dc4765e407f752c486856d0d193341724479201b5e734a7bb84ec9e298c8b64c",
+    "web/pets-v1.jpg": "7ce760cbf4d89d8a2de03684ece2db20976609875f90b4f3e6aa3e0239311575",
+    "web/style.css": "a65b0ee52c2e2e1cfe6d0d4a996d92fe672c71fa0b6e3931418e0a5da1a81287",
+    "web/ui.jpg": "82554ae1495dc75fb6d1fd2544a8876a8c1c67493e63cfa801ab5c07b20a938e",
+    "miniprogram/pages/home/home.js": "876f46fef74169877fd2381c657fa45a0ed0d126ee1a43b4b62c1bf74f5dc468",
+    "tests/nickname-security.test.js": "d9eeb6d00b4524e411b22e5e629f0a21b256ef65884aee2ee0ad4014cb890eaa",
+    "tests/content-security.test.js": "183b8a131b9edcc904bad6cc5bdae0b7bc6f451a4355da630f082f47c8c9a325",
+    "tests/frontend.test.js": "60aec96e59a6c0c2fd37c3ba3b80679616dd09438dbd52ee610bfac08ca246a2"
+  }
+}

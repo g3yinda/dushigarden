@@ -94,7 +94,7 @@ class RoomService extends EventEmitter {
     );
     fs.renameSync(temp, this.file);
   }
-  session({ name = "小猫", avatar = 0, avatarUrl } = {}, identity = null) {
+  session({ name = "小猫", avatar = 0, avatarUrl } = {}, identity = null, nicknameReview) {
     if (avatarUrl !== undefined && avatarUrl !== "" && !validWechatAvatar(avatarUrl)) fail("微信头像地址不正确");
     const now = this.now();
     const key = identity ? "wx:" + hash(identity) : null;
@@ -116,6 +116,13 @@ class RoomService extends EventEmitter {
       else if (validAvatar(avatar) && avatar !== p.avatar) p.avatarUrl = "";
       if (validAvatar(avatar)) p.avatar = avatar;
     }
+    if (nicknameReview?.name === p.name) p.nicknameReview = nicknameReview;
+    else delete p.nicknameReview;
+    const room = this.find(p.id);
+    if (room?.status === "waiting") {
+      Object.assign(room.players.find(seat=>seat.id===p.id),{name:p.name,avatar:p.avatar,avatarUrl:p.avatarUrl || ""});
+      this.changed(room);
+    }
     for (const [key, s] of Object.entries(this.sessions))
       if (s.expires <= now) delete this.sessions[key];
     const token = crypto.randomBytes(32).toString("base64url");
@@ -130,7 +137,7 @@ class RoomService extends EventEmitter {
       mode: identity ? "wechat" : "local",
     };
   }
-  profile(id, { name, avatar, avatarUrl }) {
+  profile(id, { name, avatar, avatarUrl }, nicknameReview) {
     const p = this.players[id];
     if (!p) fail("请重新登录", "UNAUTHORIZED", 401);
     const r = this.find(id);
@@ -143,6 +150,8 @@ class RoomService extends EventEmitter {
         .slice(0, 12) || p.name;
     p.avatar = validAvatar(avatar) ? avatar : p.avatar;
     p.avatarUrl = nextUrl;
+    if (nicknameReview?.name === p.name) p.nicknameReview = nicknameReview;
+    else delete p.nicknameReview;
     if (r) {
       const seat = r.players.find((p) => p.id === id);
       seat.name = p.name;
@@ -322,6 +331,7 @@ class RoomService extends EventEmitter {
       players: [this.seat(id)],
       game: null,
       commands: {},
+      ...(this.nicknamePolicyVersion ? {nicknamePolicyVersion:this.nicknamePolicyVersion} : {}),
       updatedAt: this.now(),
       offlineSince: null,
     };

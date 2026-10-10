@@ -1,0 +1,8 @@
+{
+  "NODE_ENV": "production",
+  "BOOMCAT_MODE": "wechat",
+  "HOST": "0.0.0.0",
+  "PORT": "8787",
+  "WX_APP_ID": "wxf7af6d01a9bbfdbd",
+  "WX_APP_SECRET": ""
+}

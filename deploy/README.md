@@ -1,5 +1,13 @@
 # 腾讯云公网调试与正式发布
 
+2026-10-05最新：用户修正HOST后确认手机体验版正常建房；认证进行中。具体运行版本/存储未独立查询，工程收尾与下一阶段见[项目交接](../docs/11-第一阶段交接与项目记忆.md)。下文TLS/启动待验收属于排障历史。
+
+2026-10-05云托管TLS修复：已更新Dockerfile的CA安装与Node额外CA配置；新包为output/deploy/boomcat-cloudrun-tls-fix-2026-10-05.zip。保持原boomcat服务、端口与登录变量，重新构建部署；真实证书挂载和手机建房仍待验证。见[定位与操作步骤](../docs/implementation/wechat-login-unavailable.md)。
+
+2026-10-04最新：用户确认云托管发布成功，本地已切换callContainer连接prod-d2gqiy08z19bd1427/boomcat；重新上传及关闭调试手机验收待完成。见[云托管接入](../docs/implementation/cloudrun-transport.md)。
+
+启动故障历史：2026-10-04用户正在部署微信云托管服务boomcat，boomcat-001镜像构建成功但缺少正式微信登录运行变量而重启失败。控制台配置、模板和本地复现证据见[微信云托管启动配置](wechat-cloudrun-startup.md)。下面的腾讯云临时服务记录继续保留，不能当作云托管已部署成功。
+
 后端：单实例 Docker / Node.js 24，独立数据卷。公网调试使用 `BOOMCAT_MODE=preview`，每个 API 请求（公共健康/卡牌目录除外）都需要随机访问码；即使请求经回环代理转发也不放行无认证请求。此模式不承载真实微信账号登录，Bot 可用，网页入口不开放。不要上传调试包作为正式版本。
 
 ## 当前部署约定（v0.11.2）
@@ -8,11 +16,13 @@
 - 目录 `/home/ubuntu/boomcat/`；镜像 `boomcat-preview:0.11.2`；容器 `boomcat-preview`。
 - 端口仅绑定 `127.0.0.1:8790`；数据卷 `boomcat-preview-data`。不改动原有 Nginx、SSH 或防火墙规则。
 - HTTPS 使用官方 `cloudflare/cloudflared` 临时 Tunnel，容器 `boomcat-preview-tunnel`。不要求购买新域名；随机地址可能随隧道重建改变，不能作为正式发布域名。
-- 临时模式秘钥仅存放服务器 `preview.env`、本地忽略的 `.env.preview` 与 `miniprogram/config.js`；实际文件 600 权限。
+- 临时模式秘钥仅存放服务器 `preview.env`、本地忽略的 `.env.preview` 与旧客户端配置备份（当前 `miniprogram/config.js` 已切换云托管）；实际文件 600 权限。
 
 只打包 Dockerfile、package.json、server、shared、web，不上传本地对局、个人配置、SSH 密钥、截图与聊天记录。构建完成后数据卷保留，容器以非 root 身份运行。
 
 ## 客户端配置
+
+每次准备审核上传前，先执行`npm run check:release`。检查会一次列出阻塞项并以非零状态退出，不打印访问码。2026-10-04切换前配置曾有六项阻塞；当前云托管配置检查通过，后台授权和真机验收仍须完成；这条命令不自动配置微信后台白名单，也不能拦截开发工具直接上传。已出现用户1.0.0审核因手机建房网络失败被拒，见[审核故障记录](../docs/implementation/review-network-failure.md)。正式验收必须关闭手机调试模式。
 
 在 `.env.preview` 中保存后端的访问码，在微信开发工具重新编译，扫码真机调试。正式发布检查必须拒绝 `publicPreview`、本地身份和调试访问码；正式环境应关闭 preview，启用 `NODE_ENV=production` 的微信 code 换身份流程，配置后端 AppSecret、已备案 HTTPS 域名与 request 白名单。
 

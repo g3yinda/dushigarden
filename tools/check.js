@@ -69,15 +69,15 @@ console.log(
 );
 if (process.argv.includes("--release")) {
   const config = require("../miniprogram/config");
-  assert.notEqual(config.publicPreview, true, "正式发布前移除公网测试配置");
-  assert.equal(
-    config.phoneDebug === true,
-    false,
-    "正式发布前移除整个真机调试配置",
-  );
-  assert.equal(config.debugToken || "", "", "正式发布前移除真机调试访问码");
-  assert.equal(config.localMode, false, "正式发布前关闭本地身份模式");
-  assert.match(config.apiBase, /^https:\/\//, "正式发布需要 HTTPS 后端");
-  assert.equal(project.setting.urlCheck, true, "正式发布前启用合法域名检查");
-  console.log("发布配置检查通过。");
+  const privateFile = path.join(root, "project.private.config.json");
+  const privateProject = fs.existsSync(privateFile) ? JSON.parse(fs.readFileSync(privateFile, "utf8")) : {};
+  const effectiveProject = {...project, setting:{...project.setting, ...privateProject.setting}};
+  const issues = require("./release-config").releaseConfigIssues(config, effectiveProject);
+  if (issues.length) {
+    console.error("发布配置检查未通过，禁止将当前调试配置用于审核或正式发布：");
+    issues.forEach((issue, index) => console.error(`${index + 1}. ${issue}`));
+    process.exitCode = 1;
+  } else {
+    console.log("发布配置检查通过；仍需确认对应传输的后台授权、备案、后端微信登录和状态持久化，以及关闭调试的真机完整对局。");
+  }
 }

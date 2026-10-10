@@ -9,7 +9,7 @@
     "enhance": true,
     "postcss": true,
     "minified": true,
-    "urlCheck": false,
+    "urlCheck": true,
     "compileWorklet": false,
     "uglifyFileName": false,
     "uploadWithSourceMap": true,
@@ -29,12 +29,30 @@
   },
   "packOptions": {
     "ignore": [
-      { "type": "suffix", "value": ".wxml" },
-      { "type": "suffix", "value": ".wxss" },
-      { "type": "file", "value": "app.js" },
-      { "type": "file", "value": "app.json" },
-      { "type": "file", "value": "sitemap.json" },
-      { "type": "file", "value": "pages/home/home.json" }
+      {
+        "type": "suffix",
+        "value": ".wxml"
+      },
+      {
+        "type": "suffix",
+        "value": ".wxss"
+      },
+      {
+        "type": "file",
+        "value": "app.js"
+      },
+      {
+        "type": "file",
+        "value": "app.json"
+      },
+      {
+        "type": "file",
+        "value": "sitemap.json"
+      },
+      {
+        "type": "file",
+        "value": "pages/home/home.json"
+      }
     ],
     "include": []
   },

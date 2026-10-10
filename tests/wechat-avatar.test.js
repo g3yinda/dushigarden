@@ -32,7 +32,7 @@ test('取消微信授权保留窗口与选项，成功才使用头像；不收�
 test('头像本地选择与微信选择持久保存，损坏旧缓存回退且不崩溃',async()=>{
   const storage=new Map([['boom.avatar',999]]);let definition;
   const wx={getStorageSync:k=>storage.get(k),setStorageSync:(k,v)=>storage.set(k,v),showToast(){}};
-  vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/home/home.js'),'utf8'),{require:n=>n.includes('controller')?U:{localMode:true},wx,Page:p=>definition=p});
+  vm.runInNewContext(fs.readFileSync(require.resolve('../miniprogram/pages/home/home.js'),'utf8'),{require:n=>n.includes('controller')?U:n.includes('api-transport')?require('../miniprogram/lib/api-transport'):{localMode:true},wx,Page:p=>definition=p});
   const p=definition;p.setData=patch=>Object.assign(p.data,patch);p.restore=()=>{};p.onLoad({});assert.equal(p.data.avatar,0);
   p.useWechatAvatar('http://wx.qlogo.cn/mmopen/x/132');assert.equal(p.data.avatarUrl,'https://wx.qlogo.cn/mmopen/x/132');
   assert.equal(storage.get('boom.avatarUrl'),p.data.avatarUrl);

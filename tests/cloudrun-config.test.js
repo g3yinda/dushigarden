@@ -1,0 +1,37 @@
+"use strict";
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs"), os = require("node:os"), path = require("node:path"), vm = require("node:vm");
+const { configureCloudrun } = require("../tools/configure-cloudrun");
+
+test("云托管切换工具默认只检查；执行切换时备份私有配置并启用合法域名检查", t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "boomcat-cloud-config-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "miniprogram"));
+  const before = 'module.exports={localMode:true,debugToken:"synthetic-private-value"};\n';
+  const configFile = path.join(root, "miniprogram/config.js");
+  fs.writeFileSync(configFile, before);
+  const projectFile = path.join(root, "project.config.json");
+  fs.writeFileSync(projectFile, JSON.stringify({ appid: "wxf7af6d01a9bbfdbd", setting: { urlCheck: false, es6: true } }));
+  const privateFile = path.join(root, "project.private.config.json");
+  fs.writeFileSync(privateFile, JSON.stringify({setting:{urlCheck:false,hotReload:true}}));
+  const dry = configureCloudrun({ root });
+  assert.equal(dry.applied, false);
+  assert.equal(fs.readFileSync(configFile, "utf8"), before);
+  assert.equal(JSON.parse(fs.readFileSync(projectFile)).setting.urlCheck, false);
+  const applied = configureCloudrun({ root, apply: true });
+  assert.equal(fs.readFileSync(applied.backupPath, "utf8"), before);
+  assert.equal(fs.statSync(applied.backupPath).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(configFile).mode & 0o777, 0o600);
+  assert.equal(JSON.parse(fs.readFileSync(projectFile)).setting.urlCheck, true);
+  assert.equal(JSON.parse(fs.readFileSync(projectFile)).setting.es6, true);
+  assert.equal(JSON.parse(fs.readFileSync(privateFile)).setting.urlCheck, true);
+  assert.equal(JSON.parse(fs.readFileSync(privateFile)).setting.hotReload, true);
+  const source = fs.readFileSync(configFile, "utf8");
+  assert(!source.includes("synthetic-private-value"));
+  const context = { module: { exports: {} } };
+  vm.runInNewContext(source, context);
+  assert.equal(context.module.exports.cloudRunEnv, "prod-d2gqiy08z19bd1427");
+  assert.equal(context.module.exports.cloudService, "boomcat");
+  assert.equal(context.module.exports.localMode, false);
+});
